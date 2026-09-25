@@ -1,0 +1,911 @@
+# Step 0 per-replica metric evidence
+# Context: k3d-devops-cs
+# Fork revision: main@sha1:fe37386b32f70e2a86c8188ad1f32c6e5e59f2b4
+# BEFORE {"containers": [{"image": "ghcr.io/voize-gmbh/devops-case-study/backend-api:v1", "imageID": "ghcr.io/voize-gmbh/devops-case-study/backend-api@sha256:348f4aa204a84a086bdb430741e7eb9a7029fc7ba648543d34888df6a9580327", "ready": true, "restarts": 0}], "namespace": "backend-api", "pod": "backend-api-554cffb7d9-mg4vj", "start": "2026-09-25T09:20:17Z", "uid": "55f5f707-0250-4b77-90c9-daec8e7944b7"}
+# BEFORE {"containers": [{"image": "ghcr.io/voize-gmbh/devops-case-study/backend-api:v1", "imageID": "ghcr.io/voize-gmbh/devops-case-study/backend-api@sha256:348f4aa204a84a086bdb430741e7eb9a7029fc7ba648543d34888df6a9580327", "ready": true, "restarts": 0}], "namespace": "backend-api", "pod": "backend-api-554cffb7d9-xgfmw", "start": "2026-09-25T09:20:17Z", "uid": "1c90f968-0d08-42d3-9cb0-9ecb96e6551e"}
+# BEFORE {"containers": [{"image": "ghcr.io/voize-gmbh/devops-case-study/load-generator:v1", "imageID": "ghcr.io/voize-gmbh/devops-case-study/load-generator@sha256:892520863b7eeb94949ed5f295122ab0e976ae7e6131a1c780c349b736831111", "ready": true, "restarts": 0}], "namespace": "load-generator", "pod": "load-generator-6c49c5965f-2lz2k", "start": "2026-09-25T09:20:17Z", "uid": "cacc9a5f-9e25-463f-968c-eefd179e542b"}
+# BEFORE {"containers": [{"image": "ghcr.io/voize-gmbh/devops-case-study/ml-api:v1", "imageID": "ghcr.io/voize-gmbh/devops-case-study/ml-api@sha256:d63e8585292ff3711d89525010a2b3868ba2c8c141e53ffe403d817f2798801a", "ready": true, "restarts": 0}], "namespace": "ml-api", "pod": "ml-api-5c9dbbb657-gqs85", "start": "2026-09-25T09:20:17Z", "uid": "b2e967a0-8090-464e-8ac1-e5bdb078ba88"}
+# BEFORE {"containers": [{"image": "ghcr.io/voize-gmbh/devops-case-study/ml-api:v1", "imageID": "ghcr.io/voize-gmbh/devops-case-study/ml-api@sha256:d63e8585292ff3711d89525010a2b3868ba2c8c141e53ffe403d817f2798801a", "ready": true, "restarts": 0}], "namespace": "ml-api", "pod": "ml-api-5c9dbbb657-zqdlx", "start": "2026-09-25T09:20:17Z", "uid": "cdb3fd26-bd75-4239-8834-b54e79a16d8a"}
+# BEFORE {"containers": [{"image": "docker.io/library/postgres:16-alpine", "imageID": "docker.io/library/postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea", "ready": true, "restarts": 0}], "namespace": "postgres", "pod": "postgres-559474cdd9-mls5n", "start": "2026-09-25T09:20:17Z", "uid": "4ac9c2cd-04ab-427e-adce-31fb08f361b4"}
+# PORTS {"backend-api-554cffb7d9-mg4vj": 18003, "backend-api-554cffb7d9-xgfmw": 18004, "ml-api-5c9dbbb657-gqs85": 18001, "ml-api-5c9dbbb657-zqdlx": 18002}
+# HEALTH {"backend-api-554cffb7d9-mg4vj": {"body": "{\"status\":\"healthy\"}", "status": 200}, "backend-api-554cffb7d9-xgfmw": {"body": "{\"status\":\"healthy\"}", "status": 200}, "ml-api-5c9dbbb657-gqs85": {"body": "{\"status\":\"healthy\"}", "status": 200}, "ml-api-5c9dbbb657-zqdlx": {"body": "{\"status\":\"healthy\"}", "status": 200}}
+
+# SAMPLE {"pod": "ml-api-5c9dbbb657-gqs85", "sample": 0, "timestamp": "2026-09-25T09:24:05.684891+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 931.0
+python_gc_objects_collected_total{generation="1"} 440.0
+python_gc_objects_collected_total{generation="2"} 0.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 114.0
+python_gc_collections_total{generation="1"} 10.0
+python_gc_collections_total{generation="2"} 0.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 2.12197376e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 4.8238592e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032802958e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 0.85
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 9.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP ml_api_requests_total Total requests
+# TYPE ml_api_requests_total counter
+ml_api_requests_total{endpoint="/ready",method="GET",status="200"} 42.0
+ml_api_requests_total{endpoint="/health",method="GET",status="200"} 23.0
+ml_api_requests_total{endpoint="/predict",method="POST",status="200"} 36.0
+# HELP ml_api_requests_created Total requests
+# TYPE ml_api_requests_created gauge
+ml_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.7903280363137426e+09
+ml_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280378133233e+09
+ml_api_requests_created{endpoint="/predict",method="POST",status="200"} 1.7903280427134635e+09
+# HELP ml_api_request_duration_seconds Request latency
+# TYPE ml_api_request_duration_seconds histogram
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.01"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.05"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.1"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.25"} 19.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.5"} 36.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"} 36.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="2.5"} 36.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="5.0"} 36.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="10.0"} 36.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="+Inf"} 36.0
+ml_api_request_duration_seconds_count{endpoint="/predict"} 36.0
+ml_api_request_duration_seconds_sum{endpoint="/predict"} 9.241119587000043
+# HELP ml_api_request_duration_seconds_created Request latency
+# TYPE ml_api_request_duration_seconds_created gauge
+ml_api_request_duration_seconds_created{endpoint="/predict"} 1.7903280424474428e+09
+# HELP ml_api_predictions_total Total predictions made
+# TYPE ml_api_predictions_total counter
+ml_api_predictions_total 36.0
+# HELP ml_api_predictions_created Total predictions made
+# TYPE ml_api_predictions_created gauge
+ml_api_predictions_created 1.7903280304713626e+09
+# HELP ml_api_memory_bytes Simulated memory usage in bytes
+# TYPE ml_api_memory_bytes gauge
+ml_api_memory_bytes 0.0
+
+# SAMPLE {"pod": "ml-api-5c9dbbb657-zqdlx", "sample": 0, "timestamp": "2026-09-25T09:24:05.687534+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 363.0
+python_gc_objects_collected_total{generation="1"} 440.0
+python_gc_objects_collected_total{generation="2"} 0.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 113.0
+python_gc_collections_total{generation="1"} 10.0
+python_gc_collections_total{generation="2"} 0.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 2.12197376e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 4.8160768e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032802958e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 0.82
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 9.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP ml_api_requests_total Total requests
+# TYPE ml_api_requests_total counter
+ml_api_requests_total{endpoint="/ready",method="GET",status="200"} 42.0
+ml_api_requests_total{endpoint="/health",method="GET",status="200"} 23.0
+ml_api_requests_total{endpoint="/predict",method="POST",status="200"} 23.0
+# HELP ml_api_requests_created Total requests
+# TYPE ml_api_requests_created gauge
+ml_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.7903280363137162e+09
+ml_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280378039362e+09
+ml_api_requests_created{endpoint="/predict",method="POST",status="200"} 1.7903280461852396e+09
+# HELP ml_api_request_duration_seconds Request latency
+# TYPE ml_api_request_duration_seconds histogram
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.01"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.05"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.1"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.25"} 15.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.5"} 23.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"} 23.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="2.5"} 23.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="5.0"} 23.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="10.0"} 23.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="+Inf"} 23.0
+ml_api_request_duration_seconds_count{endpoint="/predict"} 23.0
+ml_api_request_duration_seconds_sum{endpoint="/predict"} 5.662191585000016
+# HELP ml_api_request_duration_seconds_created Request latency
+# TYPE ml_api_request_duration_seconds_created gauge
+ml_api_request_duration_seconds_created{endpoint="/predict"} 1.7903280459594257e+09
+# HELP ml_api_predictions_total Total predictions made
+# TYPE ml_api_predictions_total counter
+ml_api_predictions_total 23.0
+# HELP ml_api_predictions_created Total predictions made
+# TYPE ml_api_predictions_created gauge
+ml_api_predictions_created 1.7903280304680858e+09
+# HELP ml_api_memory_bytes Simulated memory usage in bytes
+# TYPE ml_api_memory_bytes gauge
+ml_api_memory_bytes 0.0
+
+# SAMPLE {"pod": "backend-api-554cffb7d9-mg4vj", "sample": 0, "timestamp": "2026-09-25T09:24:05.690164+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 3067.0
+python_gc_objects_collected_total{generation="1"} 400.0
+python_gc_objects_collected_total{generation="2"} 0.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 120.0
+python_gc_collections_total{generation="1"} 10.0
+python_gc_collections_total{generation="2"} 0.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1.46948096e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 5.4378496e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032804321e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 0.8099999999999999
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 11.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP backend_api_requests_total Total requests
+# TYPE backend_api_requests_total counter
+backend_api_requests_total{endpoint="/ready",method="GET",status="200"} 39.0
+backend_api_requests_total{endpoint="/health",method="GET",status="200"} 21.0
+backend_api_requests_total{endpoint="/process",method="POST",status="500"} 28.0
+# HELP backend_api_requests_created Total requests
+# TYPE backend_api_requests_created gauge
+backend_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.790328055363931e+09
+backend_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280578255746e+09
+backend_api_requests_created{endpoint="/process",method="POST",status="500"} 1.790328058082901e+09
+# HELP backend_api_request_duration_seconds Request latency
+# TYPE backend_api_request_duration_seconds histogram
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.01"} 28.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.05"} 28.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.1"} 28.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"} 28.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.5"} 28.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="1.0"} 28.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="2.5"} 28.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="5.0"} 28.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="10.0"} 28.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="+Inf"} 28.0
+backend_api_request_duration_seconds_count{endpoint="/process"} 28.0
+backend_api_request_duration_seconds_sum{endpoint="/process"} 0.022044579999970892
+# HELP backend_api_request_duration_seconds_created Request latency
+# TYPE backend_api_request_duration_seconds_created gauge
+backend_api_request_duration_seconds_created{endpoint="/process"} 1.790328058080646e+09
+# HELP backend_api_db_connections_active Active database connections
+# TYPE backend_api_db_connections_active gauge
+backend_api_db_connections_active 0.0
+# HELP backend_api_db_queries_total Total DB queries
+# TYPE backend_api_db_queries_total counter
+backend_api_db_queries_total{status="error"} 28.0
+# HELP backend_api_db_queries_created Total DB queries
+# TYPE backend_api_db_queries_created gauge
+backend_api_db_queries_created{status="error"} 1.790328058082885e+09
+
+# SAMPLE {"pod": "backend-api-554cffb7d9-xgfmw", "sample": 0, "timestamp": "2026-09-25T09:24:05.692718+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 3151.0
+python_gc_objects_collected_total{generation="1"} 400.0
+python_gc_objects_collected_total{generation="2"} 0.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 120.0
+python_gc_collections_total{generation="1"} 10.0
+python_gc_collections_total{generation="2"} 0.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1.46948096e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 5.419008e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032804321e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 0.78
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 11.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP backend_api_requests_total Total requests
+# TYPE backend_api_requests_total counter
+backend_api_requests_total{endpoint="/ready",method="GET",status="200"} 39.0
+backend_api_requests_total{endpoint="/health",method="GET",status="200"} 21.0
+backend_api_requests_total{endpoint="/process",method="POST",status="500"} 27.0
+# HELP backend_api_requests_created Total requests
+# TYPE backend_api_requests_created gauge
+backend_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.790328055364105e+09
+backend_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280578153198e+09
+backend_api_requests_created{endpoint="/process",method="POST",status="500"} 1.7903280752076097e+09
+# HELP backend_api_request_duration_seconds Request latency
+# TYPE backend_api_request_duration_seconds histogram
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.01"} 27.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.05"} 27.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.1"} 27.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"} 27.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.5"} 27.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="1.0"} 27.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="2.5"} 27.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="5.0"} 27.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="10.0"} 27.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="+Inf"} 27.0
+backend_api_request_duration_seconds_count{endpoint="/process"} 27.0
+backend_api_request_duration_seconds_sum{endpoint="/process"} 0.024096542000023646
+# HELP backend_api_request_duration_seconds_created Request latency
+# TYPE backend_api_request_duration_seconds_created gauge
+backend_api_request_duration_seconds_created{endpoint="/process"} 1.7903280752060108e+09
+# HELP backend_api_db_connections_active Active database connections
+# TYPE backend_api_db_connections_active gauge
+backend_api_db_connections_active 0.0
+# HELP backend_api_db_queries_total Total DB queries
+# TYPE backend_api_db_queries_total counter
+backend_api_db_queries_total{status="error"} 27.0
+# HELP backend_api_db_queries_created Total DB queries
+# TYPE backend_api_db_queries_created gauge
+backend_api_db_queries_created{status="error"} 1.790328075207594e+09
+
+# SAMPLE {"pod": "ml-api-5c9dbbb657-gqs85", "sample": 1, "timestamp": "2026-09-25T09:25:05.690397+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 931.0
+python_gc_objects_collected_total{generation="1"} 440.0
+python_gc_objects_collected_total{generation="2"} 0.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 114.0
+python_gc_collections_total{generation="1"} 10.0
+python_gc_collections_total{generation="2"} 0.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 2.12197376e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 4.8238592e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032802958e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 1.02
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 9.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP ml_api_requests_total Total requests
+# TYPE ml_api_requests_total counter
+ml_api_requests_total{endpoint="/ready",method="GET",status="200"} 54.0
+ml_api_requests_total{endpoint="/health",method="GET",status="200"} 29.0
+ml_api_requests_total{endpoint="/predict",method="POST",status="200"} 44.0
+# HELP ml_api_requests_created Total requests
+# TYPE ml_api_requests_created gauge
+ml_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.7903280363137426e+09
+ml_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280378133233e+09
+ml_api_requests_created{endpoint="/predict",method="POST",status="200"} 1.7903280427134635e+09
+# HELP ml_api_request_duration_seconds Request latency
+# TYPE ml_api_request_duration_seconds histogram
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.01"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.05"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.1"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.25"} 25.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.5"} 44.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"} 44.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="2.5"} 44.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="5.0"} 44.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="10.0"} 44.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="+Inf"} 44.0
+ml_api_request_duration_seconds_count{endpoint="/predict"} 44.0
+ml_api_request_duration_seconds_sum{endpoint="/predict"} 10.842997420999978
+# HELP ml_api_request_duration_seconds_created Request latency
+# TYPE ml_api_request_duration_seconds_created gauge
+ml_api_request_duration_seconds_created{endpoint="/predict"} 1.7903280424474428e+09
+# HELP ml_api_predictions_total Total predictions made
+# TYPE ml_api_predictions_total counter
+ml_api_predictions_total 44.0
+# HELP ml_api_predictions_created Total predictions made
+# TYPE ml_api_predictions_created gauge
+ml_api_predictions_created 1.7903280304713626e+09
+# HELP ml_api_memory_bytes Simulated memory usage in bytes
+# TYPE ml_api_memory_bytes gauge
+ml_api_memory_bytes 0.0
+
+# SAMPLE {"pod": "ml-api-5c9dbbb657-zqdlx", "sample": 1, "timestamp": "2026-09-25T09:25:05.694137+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 952.0
+python_gc_objects_collected_total{generation="1"} 440.0
+python_gc_objects_collected_total{generation="2"} 0.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 114.0
+python_gc_collections_total{generation="1"} 10.0
+python_gc_collections_total{generation="2"} 0.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 2.12197376e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 4.8160768e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032802958e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 1.0
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 9.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP ml_api_requests_total Total requests
+# TYPE ml_api_requests_total counter
+ml_api_requests_total{endpoint="/ready",method="GET",status="200"} 54.0
+ml_api_requests_total{endpoint="/health",method="GET",status="200"} 29.0
+ml_api_requests_total{endpoint="/predict",method="POST",status="200"} 32.0
+# HELP ml_api_requests_created Total requests
+# TYPE ml_api_requests_created gauge
+ml_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.7903280363137162e+09
+ml_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280378039362e+09
+ml_api_requests_created{endpoint="/predict",method="POST",status="200"} 1.7903280461852396e+09
+# HELP ml_api_request_duration_seconds Request latency
+# TYPE ml_api_request_duration_seconds histogram
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.01"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.05"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.1"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.25"} 23.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.5"} 32.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"} 32.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="2.5"} 32.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="5.0"} 32.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="10.0"} 32.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="+Inf"} 32.0
+ml_api_request_duration_seconds_count{endpoint="/predict"} 32.0
+ml_api_request_duration_seconds_sum{endpoint="/predict"} 7.2196152950000965
+# HELP ml_api_request_duration_seconds_created Request latency
+# TYPE ml_api_request_duration_seconds_created gauge
+ml_api_request_duration_seconds_created{endpoint="/predict"} 1.7903280459594257e+09
+# HELP ml_api_predictions_total Total predictions made
+# TYPE ml_api_predictions_total counter
+ml_api_predictions_total 32.0
+# HELP ml_api_predictions_created Total predictions made
+# TYPE ml_api_predictions_created gauge
+ml_api_predictions_created 1.7903280304680858e+09
+# HELP ml_api_memory_bytes Simulated memory usage in bytes
+# TYPE ml_api_memory_bytes gauge
+ml_api_memory_bytes 0.0
+
+# SAMPLE {"pod": "backend-api-554cffb7d9-mg4vj", "sample": 1, "timestamp": "2026-09-25T09:25:05.697226+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 3811.0
+python_gc_objects_collected_total{generation="1"} 400.0
+python_gc_objects_collected_total{generation="2"} 0.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 121.0
+python_gc_collections_total{generation="1"} 10.0
+python_gc_collections_total{generation="2"} 0.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1.46948096e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 5.4378496e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032804321e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 0.97
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 11.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP backend_api_requests_total Total requests
+# TYPE backend_api_requests_total counter
+backend_api_requests_total{endpoint="/ready",method="GET",status="200"} 51.0
+backend_api_requests_total{endpoint="/health",method="GET",status="200"} 27.0
+backend_api_requests_total{endpoint="/process",method="POST",status="500"} 35.0
+# HELP backend_api_requests_created Total requests
+# TYPE backend_api_requests_created gauge
+backend_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.790328055363931e+09
+backend_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280578255746e+09
+backend_api_requests_created{endpoint="/process",method="POST",status="500"} 1.790328058082901e+09
+# HELP backend_api_request_duration_seconds Request latency
+# TYPE backend_api_request_duration_seconds histogram
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.01"} 35.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.05"} 35.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.1"} 35.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"} 35.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.5"} 35.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="1.0"} 35.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="2.5"} 35.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="5.0"} 35.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="10.0"} 35.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="+Inf"} 35.0
+backend_api_request_duration_seconds_count{endpoint="/process"} 35.0
+backend_api_request_duration_seconds_sum{endpoint="/process"} 0.02646078799992324
+# HELP backend_api_request_duration_seconds_created Request latency
+# TYPE backend_api_request_duration_seconds_created gauge
+backend_api_request_duration_seconds_created{endpoint="/process"} 1.790328058080646e+09
+# HELP backend_api_db_connections_active Active database connections
+# TYPE backend_api_db_connections_active gauge
+backend_api_db_connections_active 0.0
+# HELP backend_api_db_queries_total Total DB queries
+# TYPE backend_api_db_queries_total counter
+backend_api_db_queries_total{status="error"} 35.0
+# HELP backend_api_db_queries_created Total DB queries
+# TYPE backend_api_db_queries_created gauge
+backend_api_db_queries_created{status="error"} 1.790328058082885e+09
+
+# SAMPLE {"pod": "backend-api-554cffb7d9-xgfmw", "sample": 1, "timestamp": "2026-09-25T09:25:05.699941+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 3808.0
+python_gc_objects_collected_total{generation="1"} 1271.0
+python_gc_objects_collected_total{generation="2"} 0.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 121.0
+python_gc_collections_total{generation="1"} 11.0
+python_gc_collections_total{generation="2"} 0.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1.46948096e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 5.419008e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032804321e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 0.97
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 11.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP backend_api_requests_total Total requests
+# TYPE backend_api_requests_total counter
+backend_api_requests_total{endpoint="/ready",method="GET",status="200"} 51.0
+backend_api_requests_total{endpoint="/health",method="GET",status="200"} 27.0
+backend_api_requests_total{endpoint="/process",method="POST",status="500"} 37.0
+# HELP backend_api_requests_created Total requests
+# TYPE backend_api_requests_created gauge
+backend_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.790328055364105e+09
+backend_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280578153198e+09
+backend_api_requests_created{endpoint="/process",method="POST",status="500"} 1.7903280752076097e+09
+# HELP backend_api_request_duration_seconds Request latency
+# TYPE backend_api_request_duration_seconds histogram
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.01"} 37.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.05"} 37.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.1"} 37.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"} 37.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.5"} 37.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="1.0"} 37.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="2.5"} 37.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="5.0"} 37.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="10.0"} 37.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="+Inf"} 37.0
+backend_api_request_duration_seconds_count{endpoint="/process"} 37.0
+backend_api_request_duration_seconds_sum{endpoint="/process"} 0.03705058200003464
+# HELP backend_api_request_duration_seconds_created Request latency
+# TYPE backend_api_request_duration_seconds_created gauge
+backend_api_request_duration_seconds_created{endpoint="/process"} 1.7903280752060108e+09
+# HELP backend_api_db_connections_active Active database connections
+# TYPE backend_api_db_connections_active gauge
+backend_api_db_connections_active 0.0
+# HELP backend_api_db_queries_total Total DB queries
+# TYPE backend_api_db_queries_total counter
+backend_api_db_queries_total{status="error"} 37.0
+# HELP backend_api_db_queries_created Total DB queries
+# TYPE backend_api_db_queries_created gauge
+backend_api_db_queries_created{status="error"} 1.790328075207594e+09
+
+# SAMPLE {"pod": "ml-api-5c9dbbb657-gqs85", "sample": 2, "timestamp": "2026-09-25T09:26:05.689667+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 931.0
+python_gc_objects_collected_total{generation="1"} 440.0
+python_gc_objects_collected_total{generation="2"} 0.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 114.0
+python_gc_collections_total{generation="1"} 10.0
+python_gc_collections_total{generation="2"} 0.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 2.1221376e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 4.8238592e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032802958e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 1.2
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 9.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP ml_api_requests_total Total requests
+# TYPE ml_api_requests_total counter
+ml_api_requests_total{endpoint="/ready",method="GET",status="200"} 66.0
+ml_api_requests_total{endpoint="/health",method="GET",status="200"} 35.0
+ml_api_requests_total{endpoint="/predict",method="POST",status="200"} 54.0
+# HELP ml_api_requests_created Total requests
+# TYPE ml_api_requests_created gauge
+ml_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.7903280363137426e+09
+ml_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280378133233e+09
+ml_api_requests_created{endpoint="/predict",method="POST",status="200"} 1.7903280427134635e+09
+# HELP ml_api_request_duration_seconds Request latency
+# TYPE ml_api_request_duration_seconds histogram
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.01"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.05"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.1"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.25"} 30.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.5"} 54.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"} 54.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="2.5"} 54.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="5.0"} 54.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="10.0"} 54.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="+Inf"} 54.0
+ml_api_request_duration_seconds_count{endpoint="/predict"} 54.0
+ml_api_request_duration_seconds_sum{endpoint="/predict"} 13.456964670999952
+# HELP ml_api_request_duration_seconds_created Request latency
+# TYPE ml_api_request_duration_seconds_created gauge
+ml_api_request_duration_seconds_created{endpoint="/predict"} 1.7903280424474428e+09
+# HELP ml_api_predictions_total Total predictions made
+# TYPE ml_api_predictions_total counter
+ml_api_predictions_total 54.0
+# HELP ml_api_predictions_created Total predictions made
+# TYPE ml_api_predictions_created gauge
+ml_api_predictions_created 1.7903280304713626e+09
+# HELP ml_api_memory_bytes Simulated memory usage in bytes
+# TYPE ml_api_memory_bytes gauge
+ml_api_memory_bytes 0.0
+
+# SAMPLE {"pod": "ml-api-5c9dbbb657-zqdlx", "sample": 2, "timestamp": "2026-09-25T09:26:05.698313+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 952.0
+python_gc_objects_collected_total{generation="1"} 440.0
+python_gc_objects_collected_total{generation="2"} 0.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 114.0
+python_gc_collections_total{generation="1"} 10.0
+python_gc_collections_total{generation="2"} 0.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 2.12197376e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 4.8160768e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032802958e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 1.17
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 9.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP ml_api_requests_total Total requests
+# TYPE ml_api_requests_total counter
+ml_api_requests_total{endpoint="/ready",method="GET",status="200"} 66.0
+ml_api_requests_total{endpoint="/health",method="GET",status="200"} 35.0
+ml_api_requests_total{endpoint="/predict",method="POST",status="200"} 39.0
+# HELP ml_api_requests_created Total requests
+# TYPE ml_api_requests_created gauge
+ml_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.7903280363137162e+09
+ml_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280378039362e+09
+ml_api_requests_created{endpoint="/predict",method="POST",status="200"} 1.7903280461852396e+09
+# HELP ml_api_request_duration_seconds Request latency
+# TYPE ml_api_request_duration_seconds histogram
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.01"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.05"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.1"} 0.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.25"} 26.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="0.5"} 39.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"} 39.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="2.5"} 39.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="5.0"} 39.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="10.0"} 39.0
+ml_api_request_duration_seconds_bucket{endpoint="/predict",le="+Inf"} 39.0
+ml_api_request_duration_seconds_count{endpoint="/predict"} 39.0
+ml_api_request_duration_seconds_sum{endpoint="/predict"} 9.156366047000063
+# HELP ml_api_request_duration_seconds_created Request latency
+# TYPE ml_api_request_duration_seconds_created gauge
+ml_api_request_duration_seconds_created{endpoint="/predict"} 1.7903280459594257e+09
+# HELP ml_api_predictions_total Total predictions made
+# TYPE ml_api_predictions_total counter
+ml_api_predictions_total 39.0
+# HELP ml_api_predictions_created Total predictions made
+# TYPE ml_api_predictions_created gauge
+ml_api_predictions_created 1.7903280304680858e+09
+# HELP ml_api_memory_bytes Simulated memory usage in bytes
+# TYPE ml_api_memory_bytes gauge
+ml_api_memory_bytes 0.0
+
+# SAMPLE {"pod": "backend-api-554cffb7d9-mg4vj", "sample": 2, "timestamp": "2026-09-25T09:26:05.701260+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 3811.0
+python_gc_objects_collected_total{generation="1"} 1311.0
+python_gc_objects_collected_total{generation="2"} 680.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 121.0
+python_gc_collections_total{generation="1"} 11.0
+python_gc_collections_total{generation="2"} 1.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1.46948096e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 5.4378496e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032804321e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 1.16
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 11.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP backend_api_requests_total Total requests
+# TYPE backend_api_requests_total counter
+backend_api_requests_total{endpoint="/ready",method="GET",status="200"} 63.0
+backend_api_requests_total{endpoint="/health",method="GET",status="200"} 33.0
+backend_api_requests_total{endpoint="/process",method="POST",status="500"} 44.0
+# HELP backend_api_requests_created Total requests
+# TYPE backend_api_requests_created gauge
+backend_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.790328055363931e+09
+backend_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280578255746e+09
+backend_api_requests_created{endpoint="/process",method="POST",status="500"} 1.790328058082901e+09
+# HELP backend_api_request_duration_seconds Request latency
+# TYPE backend_api_request_duration_seconds histogram
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.01"} 44.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.05"} 44.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.1"} 44.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"} 44.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.5"} 44.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="1.0"} 44.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="2.5"} 44.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="5.0"} 44.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="10.0"} 44.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="+Inf"} 44.0
+backend_api_request_duration_seconds_count{endpoint="/process"} 44.0
+backend_api_request_duration_seconds_sum{endpoint="/process"} 0.032150745999928176
+# HELP backend_api_request_duration_seconds_created Request latency
+# TYPE backend_api_request_duration_seconds_created gauge
+backend_api_request_duration_seconds_created{endpoint="/process"} 1.790328058080646e+09
+# HELP backend_api_db_connections_active Active database connections
+# TYPE backend_api_db_connections_active gauge
+backend_api_db_connections_active 0.0
+# HELP backend_api_db_queries_total Total DB queries
+# TYPE backend_api_db_queries_total counter
+backend_api_db_queries_total{status="error"} 44.0
+# HELP backend_api_db_queries_created Total DB queries
+# TYPE backend_api_db_queries_created gauge
+backend_api_db_queries_created{status="error"} 1.790328058082885e+09
+
+# SAMPLE {"pod": "backend-api-554cffb7d9-xgfmw", "sample": 2, "timestamp": "2026-09-25T09:26:05.703813+00:00"}
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 3808.0
+python_gc_objects_collected_total{generation="1"} 1271.0
+python_gc_objects_collected_total{generation="2"} 722.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 121.0
+python_gc_collections_total{generation="1"} 11.0
+python_gc_collections_total{generation="2"} 1.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="11",patchlevel="15",version="3.11.15"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1.46948096e+08
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 5.419008e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79032804321e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 1.15
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 11.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP backend_api_requests_total Total requests
+# TYPE backend_api_requests_total counter
+backend_api_requests_total{endpoint="/ready",method="GET",status="200"} 63.0
+backend_api_requests_total{endpoint="/health",method="GET",status="200"} 33.0
+backend_api_requests_total{endpoint="/process",method="POST",status="500"} 45.0
+# HELP backend_api_requests_created Total requests
+# TYPE backend_api_requests_created gauge
+backend_api_requests_created{endpoint="/ready",method="GET",status="200"} 1.790328055364105e+09
+backend_api_requests_created{endpoint="/health",method="GET",status="200"} 1.7903280578153198e+09
+backend_api_requests_created{endpoint="/process",method="POST",status="500"} 1.7903280752076097e+09
+# HELP backend_api_request_duration_seconds Request latency
+# TYPE backend_api_request_duration_seconds histogram
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.01"} 45.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.05"} 45.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.1"} 45.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"} 45.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.5"} 45.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="1.0"} 45.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="2.5"} 45.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="5.0"} 45.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="10.0"} 45.0
+backend_api_request_duration_seconds_bucket{endpoint="/process",le="+Inf"} 45.0
+backend_api_request_duration_seconds_count{endpoint="/process"} 45.0
+backend_api_request_duration_seconds_sum{endpoint="/process"} 0.04355049800014399
+# HELP backend_api_request_duration_seconds_created Request latency
+# TYPE backend_api_request_duration_seconds_created gauge
+backend_api_request_duration_seconds_created{endpoint="/process"} 1.7903280752060108e+09
+# HELP backend_api_db_connections_active Active database connections
+# TYPE backend_api_db_connections_active gauge
+backend_api_db_connections_active 0.0
+# HELP backend_api_db_queries_total Total DB queries
+# TYPE backend_api_db_queries_total counter
+backend_api_db_queries_total{status="error"} 45.0
+# HELP backend_api_db_queries_created Total DB queries
+# TYPE backend_api_db_queries_created gauge
+backend_api_db_queries_created{status="error"} 1.790328075207594e+09
+
+# AFTER {"containers": [{"image": "ghcr.io/voize-gmbh/devops-case-study/backend-api:v1", "imageID": "ghcr.io/voize-gmbh/devops-case-study/backend-api@sha256:348f4aa204a84a086bdb430741e7eb9a7029fc7ba648543d34888df6a9580327", "ready": true, "restarts": 0}], "namespace": "backend-api", "pod": "backend-api-554cffb7d9-mg4vj", "start": "2026-09-25T09:20:17Z", "uid": "55f5f707-0250-4b77-90c9-daec8e7944b7"}
+
+# AFTER {"containers": [{"image": "ghcr.io/voize-gmbh/devops-case-study/backend-api:v1", "imageID": "ghcr.io/voize-gmbh/devops-case-study/backend-api@sha256:348f4aa204a84a086bdb430741e7eb9a7029fc7ba648543d34888df6a9580327", "ready": true, "restarts": 0}], "namespace": "backend-api", "pod": "backend-api-554cffb7d9-xgfmw", "start": "2026-09-25T09:20:17Z", "uid": "1c90f968-0d08-42d3-9cb0-9ecb96e6551e"}
+
+# AFTER {"containers": [{"image": "ghcr.io/voize-gmbh/devops-case-study/load-generator:v1", "imageID": "ghcr.io/voize-gmbh/devops-case-study/load-generator@sha256:892520863b7eeb94949ed5f295122ab0e976ae7e6131a1c780c349b736831111", "ready": true, "restarts": 0}], "namespace": "load-generator", "pod": "load-generator-6c49c5965f-2lz2k", "start": "2026-09-25T09:20:17Z", "uid": "cacc9a5f-9e25-463f-968c-eefd179e542b"}
+
+# AFTER {"containers": [{"image": "ghcr.io/voize-gmbh/devops-case-study/ml-api:v1", "imageID": "ghcr.io/voize-gmbh/devops-case-study/ml-api@sha256:d63e8585292ff3711d89525010a2b3868ba2c8c141e53ffe403d817f2798801a", "ready": true, "restarts": 0}], "namespace": "ml-api", "pod": "ml-api-5c9dbbb657-gqs85", "start": "2026-09-25T09:20:17Z", "uid": "b2e967a0-8090-464e-8ac1-e5bdb078ba88"}
+
+# AFTER {"containers": [{"image": "ghcr.io/voize-gmbh/devops-case-study/ml-api:v1", "imageID": "ghcr.io/voize-gmbh/devops-case-study/ml-api@sha256:d63e8585292ff3711d89525010a2b3868ba2c8c141e53ffe403d817f2798801a", "ready": true, "restarts": 0}], "namespace": "ml-api", "pod": "ml-api-5c9dbbb657-zqdlx", "start": "2026-09-25T09:20:17Z", "uid": "cdb3fd26-bd75-4239-8834-b54e79a16d8a"}
+
+# AFTER {"containers": [{"image": "docker.io/library/postgres:16-alpine", "imageID": "docker.io/library/postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea", "ready": true, "restarts": 0}], "namespace": "postgres", "pod": "postgres-559474cdd9-mls5n", "start": "2026-09-25T09:20:17Z", "uid": "4ac9c2cd-04ab-427e-adce-31fb08f361b4"}
