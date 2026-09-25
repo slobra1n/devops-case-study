@@ -1,0 +1,40 @@
+# Temporary notes: folder structure changes
+
+## Goal
+
+Make the apps wait for postgres. In Flux, `dependsOn` works only between Flux
+Kustomizations. Postgres and the apps were applied by the same one (`apps`),
+so there was no way to order them.
+
+## Change 1: split `apps/` into `base/` and an overlay
+
+- `apps/base/<app>/`: what each app is: objects, ports, probes, defaults.
+  The same in every environment.
+- `apps/devops-cs/<app>/`: what is specific to this environment. It uses the
+  same folder layout as `base/`, so every app's environment-specific files sit
+  in one place.
+- Why: a later staging/production can reuse the base and change only what
+  differs (image tags, replicas, credentials) without copying folders.
+- YAGNI: with only one environment, the overlay changes little today. I see
+  that argument, but I still chose this structure because I expect more
+  environments in the future.
+
+## Change 2: credentials moved to the overlay
+
+- Base only refers to the `postgres-credentials` Secret by name.
+- Each environment provides its own Secret (`secret.yaml` next to the app).
+- Why: credentials differ per environment and should not be inherited from base.
+- Not done on purpose: no secret management yet. The values are still
+  plaintext test values.
+
+## Change 3: postgres moved to its own `databases/` layer
+
+- Postgres is meant to be an app, but all apps depend on it.
+- To order it, postgres needs its own Flux Kustomization. If that Flux
+  Kustomization pointed into `apps/`, the folder would say "app" while Flux
+  treats it as a separate step. That would confuse maintainers.
+- So the rule is: one top-level folder = one layer = one Flux Kustomization.
+  Order: `infra-controllers` → `databases` → `apps`.
+- Adding another database (e.g. mysql) later means adding a folder in
+  `databases/`. `clusters/` does not change, and the apps wait for every
+  database through the single `databases` layer.

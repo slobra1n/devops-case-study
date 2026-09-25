@@ -5,5 +5,3 @@ metadata:
   namespace: postgres
 data:
   POSTGRES_DB: voize
-  POSTGRES_USER: voize
-  POSTGRES_PASSWORD: voize

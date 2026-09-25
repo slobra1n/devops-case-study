@@ -29,9 +29,15 @@ spec:
             - name: DB_NAME
               value: "voize"
             - name: DB_USER
-              value: "voize"
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
             - name: DB_PASSWORD
-              value: "voize"
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
           resources:
             requests:
               cpu: 100m

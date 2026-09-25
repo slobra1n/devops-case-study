@@ -89,7 +89,7 @@ These process-local metrics can aid diagnosis but do not replace container/node 
 
 ## Observed traffic and deltas
 
-The supplied generator is configured with both service URLs and `REQUEST_INTERVAL_MS=2000` ([deployment](../../apps/load-generator/deployment.yaml)). Its bounded logs showed alternating POSTs to ML `/predict` and backend `/process`, backend HTTP 500 errors, and earlier startup connection-refused errors. Logs were fetched with `--since=5m --tail=100`; this is bounded evidence, not a complete request history. API access logs independently identify backend failures. No transport failures can be counted from server-side request counters alone.
+The supplied generator is configured with both service URLs and `REQUEST_INTERVAL_MS=2000` ([deployment](../../apps/base/load-generator/deployment.yaml)). Its bounded logs showed alternating POSTs to ML `/predict` and backend `/process`, backend HTTP 500 errors, and earlier startup connection-refused errors. Logs were fetched with `--since=5m --tail=100`; this is bounded evidence, not a complete request history. API access logs independently identify backend failures. No transport failures can be counted from server-side request counters alone.
 
 Live `/openapi.json` documents ML `/predict` and backend `/process`, plus `/health`, `/ready`, and `/metrics`. Business request schemas are unspecified and response schemas empty; the descriptions alone do not establish payload validation or semantic correctness. The generator directly targets both APIs. No evidence establishes that an ML response feeds a backend request, or that one backend operation invokes ML; an end-to-end transcription/document journey remains unproven.
 
