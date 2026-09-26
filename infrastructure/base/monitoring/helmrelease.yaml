@@ -26,7 +26,7 @@ spec:
     defaultDashboards:
       enabled: false
     prometheus-node-exporter:
-      enabled: false
+      enabled: true
     kubeApiServer:
       enabled: false
     kubeControllerManager:

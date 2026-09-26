@@ -38,7 +38,7 @@ Namespace: `monitoring`.
 | kubelet / cAdvisor scrape | on | CPU and memory for every container |
 | CoreDNS scrape | on | Cluster DNS |
 | Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks ml-api `/health` and backend-api `/ready` through their Services, like a client; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
-| node-exporter | off | Node (Docker VM) metrics not needed; cAdvisor covers containers |
+| node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
 | Grafana, Alertmanager, vmalert, default rules, default dashboards | off | Out of scope |
 | controller-manager, scheduler, etcd scrapes | off | Embedded in the k3s process; targets would always fail |
 | API server scrape | off | High volume, not needed for app monitoring |
@@ -146,6 +146,7 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
    - `gotk_resource_info` (one series per Flux object, with its `ready` state)
    - `pg_up` (1 when the exporter can reach postgres)
    - `probe_success` (1 for each of the two app endpoints)
+   - `node_filesystem_avail_bytes{mountpoint="/"}`
 4. After deleting the VMSingle pod, data from before the deletion is still
    queryable.
 
