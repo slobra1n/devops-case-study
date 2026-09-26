@@ -76,6 +76,7 @@ so there was no way to order them.
 | See what a cluster runs and in what order | `clusters/<cluster>/` (`flux-system/` is Flux itself) |
 | Add an infrastructure component (cert-manager, Loki) | `infrastructure/base/<component>/` + `infrastructure/<cluster>/<component>/` + one line in `infrastructure/<cluster>/kustomization.yaml` |
 | Add a cluster | `clusters/<cluster>/` + a `<layer>/<cluster>/` overlay per layer |
+| Add a new top-level layer folder | Also add `!/<folder>` to `.sourceignore`; Flux only downloads the folders listed there (the `databases/` layer was missing at first: "kustomization path not found") |
 
 ## Known issue: backend 500s after a restart
 
