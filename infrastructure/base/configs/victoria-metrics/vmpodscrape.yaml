@@ -1,0 +1,32 @@
+# Based on the VictoriaMetrics operator docs, "Auto-discovery for
+# prometheus.io annotations":
+# https://docs.victoriametrics.com/operator/integrations/prometheus/
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: annotations-discovery
+  namespace: monitoring
+spec:
+  # Every pod in every namespace; the relabel rules keep only annotated ones.
+  namespaceSelector:
+    any: true
+  selector: {}
+  podMetricsEndpoints:
+    - relabelConfigs:
+        - action: drop
+          source_labels: [__meta_kubernetes_pod_container_init]
+          regex: "true"
+        - action: keep_if_equal
+          source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_container_port_number]
+        - action: keep
+          source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          regex: "true"
+        # regex (.+) keeps the default /metrics when the path annotation is
+        # absent (the Flux controllers don't set it).
+        - action: replace
+          source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          target_label: __metrics_path__
+          regex: (.+)
+        - action: replace
+          source_labels: [__meta_kubernetes_pod_node_name]
+          target_label: node
