@@ -37,6 +37,7 @@ Namespace: `monitoring`.
 | Flux object status (`gotk_resource_info`) | on | Ready/suspended per Kustomization, HelmRelease, GitRepository, HelmRepository; Flux's official kube-state-metrics custom resource config, on the existing kube-state-metrics |
 | kubelet / cAdvisor scrape | on | CPU and memory for every container |
 | CoreDNS scrape | on | Cluster DNS |
+| Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks ml-api `/health` and backend-api `/ready` through their Services, like a client; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
 | node-exporter | off | Node (Docker VM) metrics not needed; cAdvisor covers containers |
 | Grafana, Alertmanager, vmalert, default rules, default dashboards | off | Out of scope |
 | controller-manager, scheduler, etcd scrapes | off | Embedded in the k3s process; targets would always fail |
@@ -83,7 +84,8 @@ clusters/devops-cs/                 Flux wiring only
   databases.yaml                    databases      → ./databases/devops-cs
   apps.yaml                         apps           → ./apps/devops-cs (waits for databases, infrastructure)
 infrastructure/
-  base/monitoring/                  namespace, HelmRepository, HelmRelease (incl. VMPodScrape)
+  base/monitoring/                  namespace, HelmRepository, HelmRelease (incl. VMPodScrape, VMProbe),
+                                    blackbox-exporter.yaml (HelmRepository + HelmRelease)
   devops-cs/
     kustomization.yaml              lists monitoring
     monitoring/kustomization.yaml   → ../../base/monitoring
@@ -143,6 +145,7 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
    - `kube_pod_container_status_restarts_total`
    - `gotk_resource_info` (one series per Flux object, with its `ready` state)
    - `pg_up` (1 when the exporter can reach postgres)
+   - `probe_success` (1 for each of the two app endpoints)
 4. After deleting the VMSingle pod, data from before the deletion is still
    queryable.
 

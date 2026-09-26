@@ -157,3 +157,19 @@ spec:
                 - action: replace
                   source_labels: [__meta_kubernetes_pod_node_name]
                   target_label: node
+      # Check the apps from outside, through their Services, like a client would.
+      # The blackbox exporter (blackbox-exporter.yaml) runs the HTTP checks.
+      - apiVersion: operator.victoriametrics.com/v1beta1
+        kind: VMProbe
+        metadata:
+          name: app-endpoints
+          namespace: monitoring
+        spec:
+          vmProberSpec:
+            url: prometheus-blackbox-exporter.monitoring.svc.cluster.local:9115
+          module: http_2xx
+          targets:
+            staticConfig:
+              targets:
+                - http://ml-api.ml-api.svc.cluster.local:8000/health
+                - http://backend-api.backend-api.svc.cluster.local:8000/ready
