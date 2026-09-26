@@ -20,9 +20,12 @@ pinned upstream drill-down dashboards and the tools' own UIs.
 - **Stateless:** no persistent volume (the chart's default `emptyDir`). Every
   dashboard is provisioned from git and can't be saved from the UI, so a
   restart loses nothing.
-- **No runtime downloads:** `defaultDashboards.enabled: false` (already set)
-  and `syncJob.enabled: false`. The sync job currently runs after every
-  upgrade and syncs nothing.
+- **No runtime downloads:** `defaultDashboards.enabled: false` (already set),
+  `syncJob.enabled: false` (it currently runs after every upgrade and syncs
+  nothing), and Grafana's `plugins.preinstall_disabled: true`. Grafana 13
+  otherwise downloads six plugins at every start (drilldown apps, extra data
+  sources); the dashboards use only built-in panels and the Prometheus data
+  source.
 - **Delivery:** dashboard JSON files in git, turned into ConfigMaps by
   Kustomize's `configMapGenerator`, loaded by the chart's Grafana sidecar.
   Rejected: grafana.com IDs in chart values (downloads at runtime, not
@@ -70,6 +73,9 @@ HelmRelease values:
 ```yaml
 grafana:
   enabled: true
+  grafana.ini:
+    plugins:
+      preinstall_disabled: true
   sidecar:
     dashboards:
       folderAnnotation: grafana_folder
@@ -172,8 +178,8 @@ sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace="ml-api",
 sum by (pod) (backend_api_db_connections_active)
 
 # Pods: ready vs desired, restarts in the range
-kube_deployment_status_replicas_available{namespace="ml-api",deployment="ml-api"}
-kube_deployment_spec_replicas{namespace="ml-api",deployment="ml-api"}
+max(kube_deployment_status_replicas_available{namespace="ml-api",deployment="ml-api"})
+max(kube_deployment_spec_replicas{namespace="ml-api",deployment="ml-api"})
 sum(increase(kube_pod_container_status_restarts_total{namespace="ml-api"}[$__range]))
 ```
 
@@ -203,7 +209,7 @@ sum by (namespace, pod, container) (increase(kube_pod_container_status_restarts_
 sum by (namespace, deployment) (kube_deployment_status_replicas_unavailable) > 0
 
 # 3. Node (link: Node Exporter Full)
-kube_node_status_condition{condition="Ready",status="true"}
+max by (node) (kube_node_status_condition{condition="Ready",status="true"})
 1 - avg(rate(node_cpu_seconds_total{mode="idle"}[$__rate_interval]))
 1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
 max(1 - node_filesystem_avail_bytes{mountpoint=~"/|/var/lib/rancher/k3s"}
@@ -213,7 +219,7 @@ max(1 - node_filesystem_avail_bytes{mountpoint=~"/|/var/lib/rancher/k3s"}
 #    targets down: vmagent /targets; rule errors: vmalert UI)
 up == 0              # table: job, instance
 sum(vm_data_size_bytes)
-vm_free_disk_space_bytes
+min(vm_free_disk_space_bytes)
 sum(increase(vmalert_recording_rules_errors_total[$__range]))
   + (sum(increase(vmalert_alerting_rules_errors_total[$__range])) or vector(0))
 ```
@@ -221,7 +227,9 @@ sum(increase(vmalert_recording_rules_errors_total[$__range]))
 The disk query covers both a normal node (`/`) and k3d, where the node's `/`
 is an overlay the chart excludes and k3s data sits on `/var/lib/rancher/k3s`.
 The restart, unavailable-deployment and targets-down tables are problem lists:
-empty while healthy.
+empty while healthy. `max`/`min` around kube-state-metrics and VMSingle series
+drop the `pod` label, which changes when those pods restart; otherwise a stat
+shows one value per old pod.
 
 ## Drill-downs (folder `Components`)
 
