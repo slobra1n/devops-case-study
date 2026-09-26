@@ -76,7 +76,7 @@ expose no metrics endpoint; cAdvisor and kube-state-metrics cover them.
 clusters/devops-cs/                 Flux wiring only
   infrastructure.yaml               infrastructure → ./infrastructure/devops-cs
   databases.yaml                    databases      → ./databases/devops-cs
-  apps.yaml                         apps           → ./apps/devops-cs (waits for databases)
+  apps.yaml                         apps           → ./apps/devops-cs (waits for databases, infrastructure)
 infrastructure/
   base/monitoring/                  namespace, HelmRepository, HelmRelease (incl. VMPodScrape)
   devops-cs/
@@ -97,11 +97,11 @@ apps/       base/<app>/     devops-cs/<app>/
 
 ## Flux ordering
 
-`infrastructure` applies the monitoring HelmRelease; `databases` then `apps`
-(`dependsOn: databases`). Nothing depends on `infrastructure`, so a failing
-monitoring install never blocks `databases` or `apps`. When an app-critical
-component such as cert-manager is added, decide then whether apps wait for all
-of `infrastructure` or that component gets its own Flux Kustomization.
+`infrastructure` and `databases` start in parallel; `apps` waits for both
+(`dependsOn: [databases, infrastructure]`), the same rule as Flux's example
+where apps wait for infrastructure. Trade-off: while monitoring is not Ready
+(e.g. a failed chart install or unbound PVC), new app deploys wait; running
+apps keep running.
 
 ## Per-cluster differences
 

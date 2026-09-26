@@ -4,7 +4,7 @@
 
 **Goal:** Collect metrics from every pod in the cluster into VictoriaMetrics with one annotation-based scrape rule.
 
-**Architecture:** Every layer has the same shape: `<layer>/base/<component>/` (definition), `<layer>/<cluster>/<component>/` (cluster selection and differences), `clusters/<cluster>/<layer>.yaml` (Flux wiring). Monitoring is `infrastructure/base/monitoring/`: one HelmRelease for the trimmed `victoria-metrics-k8s-stack` chart that also ships the `VMPodScrape` implementing the `prometheus.io/*` annotations (chart `extraObjects`). The `infrastructure` Flux Kustomization applies it and nothing waits for it. ml-api and backend-api opt in with the annotations.
+**Architecture:** Every layer has the same shape: `<layer>/base/<component>/` (definition), `<layer>/<cluster>/<component>/` (cluster selection and differences), `clusters/<cluster>/<layer>.yaml` (Flux wiring). Monitoring is `infrastructure/base/monitoring/`: one HelmRelease for the trimmed `victoria-metrics-k8s-stack` chart that also ships the `VMPodScrape` implementing the `prometheus.io/*` annotations (chart `extraObjects`). The `infrastructure` Flux Kustomization applies it; `apps` waits for `databases` and `infrastructure`. ml-api and backend-api opt in with the annotations.
 
 **Tech Stack:** Flux v2.9.5 (`helm.toolkit.fluxcd.io/v2`, `source.toolkit.fluxcd.io/v1`), Kustomize via `kubectl kustomize`, `victoria-metrics-k8s-stack` 0.93.0, k3d/k3s.
 
@@ -18,7 +18,7 @@
 - Off: Grafana, Alertmanager, vmalert, default rules, default dashboards, node-exporter, API server, controller-manager, scheduler, etcd.
 - Scrape rule: one `VMPodScrape` `monitoring/annotations-discovery`, shipped in the HelmRelease's `extraObjects`, based on the VictoriaMetrics operator's [annotation auto-discovery example](https://docs.victoriametrics.com/operator/integrations/prometheus/); no `inlineScrapeConfig`.
 - Layout: `infrastructure/base/monitoring/` + `infrastructure/devops-cs/monitoring/`, the same shape as `databases/` and `apps/`. Per-cluster differences are Kustomize `patches:` in `infrastructure/<cluster>/monitoring/kustomization.yaml`. No `controllers/` / `configs/` folders and no `infra-controllers` / `infra-configs` units.
-- `databases` and `apps` do not depend on monitoring. No ingress.
+- `apps` waits for `databases` and `infrastructure`; `databases` waits for nothing. No ingress.
 - No application code changes. Only pod-template annotations in `apps/base`.
 - No `git push` in this plan. The user pushes; Task 3 runs after that.
 
@@ -206,7 +206,7 @@ spec:
   wait: true
 ```
 
-Remove `- name: infra-controllers` from `dependsOn` in `clusters/devops-cs/databases.yaml` (drop the now-empty `dependsOn:`) and `clusters/devops-cs/apps.yaml` (keeps `- name: databases`). Otherwise Flux blocks both with "dependency not found".
+In `clusters/devops-cs/databases.yaml` remove `dependsOn: [infra-controllers]` entirely. In `clusters/devops-cs/apps.yaml` replace `- name: infra-controllers` with `- name: infrastructure` (keeps `- name: databases`). A dependency on a removed unit would block Flux with "dependency not found".
 
 - [ ] **Step 5: Verify the render and the isolation**
 
@@ -214,10 +214,10 @@ Remove `- name: infra-controllers` from `dependsOn` in `clusters/devops-cs/datab
 kubectl kustomize infrastructure/devops-cs | grep -E '^kind:'
 kubectl kustomize infrastructure/devops-cs | grep -c 'kind: VMPodScrape'
 grep -rn 'infra-controllers\|infra-configs' clusters/devops-cs
-grep -rn 'name: infrastructure' clusters/devops-cs/apps.yaml clusters/devops-cs/databases.yaml
+grep -A3 'dependsOn' clusters/devops-cs/apps.yaml clusters/devops-cs/databases.yaml
 ```
 
-Expected: `kind: Namespace`, `kind: HelmRepository`, `kind: HelmRelease`; `1` (the VMPodScrape inside the HelmRelease values); both `grep -rn` print nothing (no stale units, nothing waits for `infrastructure`).
+Expected: `kind: Namespace`, `kind: HelmRepository`, `kind: HelmRelease`; `1` (the VMPodScrape inside the HelmRelease values); the first `grep` prints nothing (no stale units); the second shows only `apps.yaml` with `databases` and `infrastructure`.
 
 - [ ] **Step 6: Commit**
 
@@ -265,7 +265,7 @@ git commit -m "feat: opt ml-api and backend-api into metrics scraping"
 
 ## Task 3: Verify after the user pushes
 
-The user runs `git pull --rebase` (to pick up the two Flux bootstrap commits on `origin/main`) and `git push`. That push deploys the pending `apps/base` + `databases/` refactor together with Tasks 1 and 2: postgres starts with an empty database, and backend-api starts after it because `apps` waits for `databases`.
+The user runs `git pull --rebase` (to pick up the two Flux bootstrap commits on `origin/main`) and `git push`. That push deploys the pending `apps/base` + `databases/` refactor together with Tasks 1 and 2: postgres starts with an empty database, and backend-api starts after it because `apps` waits for `databases` and `infrastructure`. The first deploy of the apps therefore also waits until the VictoriaMetrics HelmRelease is Ready.
 
 **Files:** none changed.
 

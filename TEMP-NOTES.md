@@ -59,11 +59,11 @@ so there was no way to order them.
   the `VMPodScrape` need a CRD that the chart installs first. Here the
   `VMPodScrape` ships inside the chart (`extraObjects`), and Helm installs a
   chart's CRDs before everything else, so one folder is enough.
-- Nothing waits for `infrastructure`, so a broken monitoring install never
-  blocks postgres or the apps (the final review's finding when monitoring sat
-  inside `infra-controllers`, which apps and databases waited for). When
-  something apps need (e.g. cert-manager) is added, decide then: apps wait for
-  all of `infrastructure`, or that component gets its own Flux Kustomization.
+- `apps` waits for `databases` and `infrastructure`, like in Flux's example:
+  anything apps may need (monitoring now, cert-manager later) is up before
+  they deploy. Trade-off, accepted: if the monitoring install breaks, new app
+  deploys wait until it is fixed; running apps keep running. (The final
+  review flagged this when monitoring sat inside `infra-controllers`.)
 - Checked: the real chart 0.93.0 renders the `VMPodScrape` from our values, and
   a version patch in a cluster overlay changes only that cluster.
 

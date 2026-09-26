@@ -6,6 +6,7 @@ metadata:
 spec:
   dependsOn:
     - name: databases
+    - name: infrastructure
   interval: 10m
   retryInterval: 1m
   sourceRef:
