@@ -17,10 +17,29 @@ spec:
   values:
     grafana:
       enabled: false
+    # SLO alerting (docs/superpowers/specs/2026-09-26-slo-sli-design.md).
+    # vmalert evaluates VMRule objects in any namespace; the chart points it at
+    # this Alertmanager. The receivers have no integrations yet: alerts are
+    # visible in the Alertmanager UI only.
     alertmanager:
-      enabled: false
+      enabled: true
+      config:
+        route:
+          receiver: ticket # tickets, and anything unrouted still reaches a human
+          group_by: [alertname, sloth_id]
+          routes:
+            - matchers: ['sloth_severity="page"']
+              receiver: page
+        receivers:
+          - name: page
+          - name: ticket
+        # The workbook's suppression: a page silences the ticket of the same SLO.
+        inhibit_rules:
+          - source_matchers: ['sloth_severity="page"']
+            target_matchers: ['sloth_severity="ticket"']
+            equal: [sloth_id]
     vmalert:
-      enabled: false
+      enabled: true
     defaultRules:
       enabled: false
     defaultDashboards:
@@ -135,13 +154,11 @@ spec:
                   suspended: [spec, suspend]
                   revision: [status, artifact, revision]
                   url: [spec, url]
+    # The chart's default 20Gi PVC fits the 30 days (about 15 GB at today's
+    # ingest, measured in the SLO spec). Clusters override it in their overlay.
     vmsingle:
       spec:
-        retentionPeriod: "14d"
-        storage:
-          resources:
-            requests:
-              storage: 5Gi
+        retentionPeriod: "30d" # 4-week SLO window + 2 days
     # Objects that use the chart's CRDs. Helm installs the CRDs first, so they
     # can ship in the same release (the chart creates VMAgent/VMSingle the same way).
     extraObjects:

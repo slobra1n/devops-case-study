@@ -2,3 +2,16 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base/monitoring
+patches:
+  # local-path ignores the size and can't grow the existing 5Gi volume, so this
+  # cluster keeps the request it was created with.
+  - target:
+      kind: HelmRelease
+      name: victoria-metrics-k8s-stack
+    patch: |
+      - op: add
+        path: /spec/values/vmsingle/spec/storage
+        value:
+          resources:
+            requests:
+              storage: 5Gi

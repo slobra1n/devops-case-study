@@ -7,8 +7,8 @@ spec:
   interval: 24h
   url: https://prometheus-community.github.io/helm-charts
 ---
-# Prober for the VMProbe objects in helmrelease.yaml; VictoriaMetrics has no
-# prober of its own. Chart defaults include the http_2xx module.
+# Prober for the VMProbe objects (helmrelease.yaml, apps/base/ml-api/vmprobe.yaml);
+# VictoriaMetrics has no prober of its own. Chart defaults include the http_2xx module (GET).
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -23,3 +23,13 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
+  values:
+    config:
+      modules:
+        # POST probes, e.g. ml-api's POST /predict (apps/base/ml-api/vmprobe.yaml).
+        # Merged with the chart's default modules.
+        http_post_2xx:
+          prober: http
+          http:
+            method: POST
+            preferred_ip_protocol: ip4

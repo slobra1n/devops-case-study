@@ -13,8 +13,10 @@ scrape rule. This step collects and stores metrics only.
 - **Discovery:** pods opt in with the `prometheus.io/*` annotations. This is a
   widely used convention, not an official Kubernetes standard. One rule covers
   every pod, so VictoriaMetrics needs no per-app configuration.
-- **Storage:** VMSingle on a 5Gi PVC (`local-path` StorageClass), 14 days
-  retention. Metrics must survive pod and cluster restarts.
+- **Storage:** VMSingle on a PVC with 30 days retention (the 4-week SLO window
+  plus 2 days, [SLO spec](2026-09-26-slo-sli-design.md)). The base uses the
+  chart's default 20Gi; devops-cs keeps 5Gi (`local-path` StorageClass) through
+  a patch. Metrics must survive pod and cluster restarts.
 - **Layout:** every layer (`infrastructure/`, `databases/`, `apps/`) has the
   same shape: `<layer>/base/<component>/` holds the definition, written once;
   `<layer>/<cluster>/<component>/` picks it for that cluster and holds that
@@ -40,7 +42,8 @@ Namespace: `monitoring`.
 | CoreDNS scrape | on | Cluster DNS |
 | Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks ml-api `/health` and backend-api `/ready` through their Services, like a client; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
 | node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
-| Grafana, Alertmanager, vmalert, default rules, default dashboards | off | Out of scope |
+| vmalert, Alertmanager | on | Evaluate the SLO recording rules and route future alerts to `page` and `ticket` receivers without integrations ([SLO spec](2026-09-26-slo-sli-design.md)) |
+| Grafana, default rules, default dashboards | off | Out of scope |
 | controller-manager, scheduler, etcd scrapes | off | k3s runs them inside its one process and serves no separate endpoints (10257/10259 aren't listening). Their metrics come through the kubelet `/metrics` scrape |
 | API server scrape | off | On k3s it returns the same registry as the kubelet's `/metrics` ([k3s docs](https://docs.k3s.io/reference/metrics): scrape a single endpoint). Its alert groups are then not installed; add k3s-adapted ones with alerting |
 
