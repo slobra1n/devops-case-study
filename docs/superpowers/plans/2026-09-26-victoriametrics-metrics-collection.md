@@ -24,11 +24,9 @@
 
 ## Review Focus
 
-1. An annotated port that is not declared as a `containerPort` is silently dropped by `keep_if_equal`. Task 4 checks that exactly 8 pods are scraped by `kubernetes-pods`.
-2. A pod with several declared ports must still yield one target. Task 4 checks each `kubernetes-pods` pod appears exactly once.
-3. Chart pods that carry `prometheus.io/scrape` annotations would be scraped twice. Task 4 checks the `kubernetes-pods` pod list is exactly ml-api ×2, backend-api ×2, Flux ×4.
-4. First install fails if CRDs are missing or not upgraded. The HelmRelease sets `crds: CreateReplace`; Task 4 checks the HelmRelease is Ready.
-5. Metrics lost on VMSingle restart. Task 4 checks the PVC is Bound and data from before a pod deletion is still queryable.
+1. An undeclared port, a multi-port pod or an annotated chart pod shows up as a missing or extra target. Task 4 checks exactly 8 pods, each scraped once.
+2. CRDs missing on install or stale after upgrades. The chart installs them (Flux default `Create`) and the HelmRelease sets `upgrade.crds: CreateReplace`; Task 4 checks the HelmRelease is Ready.
+3. Metrics lost on VMSingle restart. Task 4 checks the PVC is Bound and data from before a pod deletion is still queryable.
 
 ---
 
@@ -38,20 +36,12 @@ The earlier refactor commits (`apps/base`, `databases/`) are local only; `origin
 
 **Files:** none changed.
 
-**Interfaces:**
-- Produces: cluster reconciled at local `HEAD`, with Flux Kustomizations `databases` and `apps` Ready.
-
-- [ ] **Step 1: Check the gap**
-
-Run: `git fetch && git status -sb | head -1`
-Expected: `## main...origin/main [ahead N, behind 2]`
-
-- [ ] **Step 2: Rebase onto the bootstrap commits**
+- [ ] **Step 1: Rebase onto the bootstrap commits**
 
 Run: `git pull --rebase`
-Expected: success, no conflicts (the remote commits only add `clusters/devops-cs/flux-system/`). Then `ls clusters/devops-cs/flux-system` lists `gotk-components.yaml gotk-sync.yaml kustomization.yaml`.
+Expected: success, no conflicts (the remote commits only add `clusters/devops-cs/flux-system/`).
 
-- [ ] **Step 3: Ask the user to approve the push, then push**
+- [ ] **Step 2: Ask the user to approve the push, then push**
 
 Expected effect on the cluster: `databases` takes over postgres, postgres and backend-api roll out once (their pod templates changed), postgres starts with an empty database, and backend-api starts after it because `apps` waits for `databases`.
 
@@ -63,7 +53,7 @@ flux get kustomizations
 
 Expected: `flux-system`, `infra-controllers`, `infra-configs`, `databases`, `apps` all `True`, revision = `git rev-parse --short HEAD`.
 
-- [ ] **Step 4: Check the backend**
+- [ ] **Step 3: Check the backend**
 
 ```sh
 kubectl logs -n backend-api -l app=backend-api --since=2m --prefix | grep 'POST /process' | tail -5
@@ -90,18 +80,13 @@ Expected: `200 OK`. If `500`, apply the known workaround from `TEMP-NOTES.md`: `
 - Consumes: Task 1 (cluster on the new layout).
 - Produces: HelmRelease `monitoring/victoria-metrics-k8s-stack`; scrape job name `kubernetes-pods`; operator-created Services labelled `app.kubernetes.io/name=vmsingle` / `vmagent`.
 
-- [ ] **Step 1: Confirm the new overlay does not render yet**
-
-Run: `kubectl kustomize infrastructure/devops-cs/controllers`
-Expected: error, path does not exist.
-
-- [ ] **Step 2: Remove the old empty layout**
+- [ ] **Step 1: Remove the old empty layout**
 
 ```sh
 git rm -q infrastructure/kustomization.yaml infrastructure/controllers/kustomization.yaml infrastructure/configs/kustomization.yaml
 ```
 
-- [ ] **Step 3: Write the base**
+- [ ] **Step 2: Write the base**
 
 `infrastructure/base/controllers/victoria-metrics/namespace.yaml`:
 
@@ -142,8 +127,6 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: victoriametrics
-  install:
-    crds: CreateReplace
   upgrade:
     crds: CreateReplace
   values:
@@ -223,7 +206,7 @@ resources:
   - helmrelease.yaml
 ```
 
-- [ ] **Step 4: Write the overlay**
+- [ ] **Step 3: Write the overlay**
 
 `infrastructure/devops-cs/controllers/kustomization.yaml`:
 
@@ -251,29 +234,27 @@ kind: Kustomization
 resources: []
 ```
 
-- [ ] **Step 5: Point Flux at the overlay**
+- [ ] **Step 4: Point Flux at the overlay**
 
 In `clusters/devops-cs/infrastructure.yaml` change:
 - `infra-controllers`: `path: ./infrastructure/controllers` → `path: ./infrastructure/devops-cs/controllers`
 - `infra-configs`: `path: ./infrastructure/configs` → `path: ./infrastructure/devops-cs/configs`
 
-- [ ] **Step 6: Verify the render**
+- [ ] **Step 5: Verify the render**
 
 ```sh
 kubectl kustomize infrastructure/devops-cs/controllers | grep -E '^kind:'
-kubectl kustomize infrastructure/devops-cs/configs
 kubectl kustomize infrastructure/devops-cs/controllers | python3 -c '
 import sys, yaml
 hr = next(d for d in yaml.safe_load_all(sys.stdin) if d and d["kind"] == "HelmRelease")
 jobs = yaml.safe_load(hr["spec"]["values"]["vmagent"]["spec"]["inlineScrapeConfig"])
 assert [j["job_name"] for j in jobs] == ["kubernetes-pods"]
 print("scrape config parses")'
-grep -rn 'infrastructure/' clusters/devops-cs/infrastructure.yaml
 ```
 
-Expected: `kind: Namespace`, `kind: HelmRepository`, `kind: HelmRelease`; configs renders `{}` or nothing; `scrape config parses`; both paths point into `infrastructure/devops-cs/`.
+Expected: `kind: Namespace`, `kind: HelmRepository`, `kind: HelmRelease`; `scrape config parses`.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```sh
 git add infrastructure clusters/devops-cs/infrastructure.yaml
@@ -292,12 +273,7 @@ git commit -m "feat: add VictoriaMetrics stack under infrastructure base/overlay
 - Consumes: scrape job `kubernetes-pods` from Task 2 (reads `prometheus.io/scrape`, `prometheus.io/port`, `prometheus.io/path`).
 - Produces: pods that declare `containerPort: 8000` and carry the three annotations.
 
-- [ ] **Step 1: Confirm no annotations yet**
-
-Run: `kubectl kustomize apps/devops-cs | grep -c 'prometheus.io/scrape'`
-Expected: `0`.
-
-- [ ] **Step 2: Add the annotations**
+- [ ] **Step 1: Add the annotations**
 
 In both files, under `spec.template.metadata`, next to `labels`:
 
@@ -312,12 +288,12 @@ In both files, under `spec.template.metadata`, next to `labels`:
         prometheus.io/path: "/metrics"
 ```
 
-- [ ] **Step 3: Verify**
+- [ ] **Step 2: Verify**
 
 Run: `kubectl kustomize apps/devops-cs | grep -c 'prometheus.io/scrape: "true"'`
 Expected: `2`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```sh
 git add apps/base/ml-api/deployment.yaml apps/base/backend-api/deployment.yaml
@@ -332,20 +308,11 @@ The annotation change rolls ml-api and backend-api once. Postgres is already run
 
 **Files:** none changed.
 
-**Interfaces:**
-- Consumes: Tasks 2 and 3.
-
-- [ ] **Step 1: Confirm nothing is collected yet**
-
-Run: `kubectl get ns monitoring`
-Expected: `NotFound`.
-
-- [ ] **Step 2: Ask the user to approve the push, then push and reconcile**
+- [ ] **Step 1: Ask the user to approve the push, then push and reconcile**
 
 ```sh
 git push
 flux reconcile kustomization flux-system --with-source
-flux reconcile kustomization infra-controllers
 flux get kustomizations
 flux get helmreleases -A
 kubectl -n monitoring get pods,pvc
@@ -353,14 +320,14 @@ kubectl -n monitoring get pods,pvc
 
 Expected (criterion 1): every Kustomization and `monitoring/victoria-metrics-k8s-stack` `True`; pods Running; PVC `Bound`, `5Gi`. The first install can take a few minutes while images pull.
 
-- [ ] **Step 3: Set up the query helper** (wait ~1 minute after pods are Ready so VMAgent has scraped)
+- [ ] **Step 2: Set up the query helper** (wait ~1 minute after pods are Ready so VMAgent has scraped)
 
 ```sh
 VMSINGLE=$(kubectl -n monitoring get svc -l app.kubernetes.io/name=vmsingle -o jsonpath='{.items[0].metadata.name}')
 q() { kubectl get --raw "/api/v1/namespaces/monitoring/services/${VMSINGLE}:8428/proxy/api/v1/query?query=$(jq -rn --arg q "$1" '$q|@uri')${2:+&time=$2}" | jq -c '.data.result[] | [.metric, .value[1]]'; }
 ```
 
-- [ ] **Step 4: Targets (criterion 2)**
+- [ ] **Step 3: Targets (criterion 2)**
 
 ```sh
 q 'count by (job) (up)'
@@ -371,9 +338,9 @@ q 'count by (namespace, pod) (up{job="kubernetes-pods"})'
 Expected:
 - jobs include `kubernetes-pods`, `kubelet` (cAdvisor/probes/resource), `kube-state-metrics`, CoreDNS, and VictoriaMetrics components (vmsingle, vmagent, operator);
 - `up == 0` returns nothing;
-- `kubernetes-pods` lists exactly 8 pods (2 `ml-api`, 2 `backend-api`, 4 `flux-system` controllers), each with value `1`. Any extra pod is a double scrape (Review Focus 3); any missing pod is an undeclared port (Review Focus 1).
+- `kubernetes-pods` lists exactly 8 pods (2 `ml-api`, 2 `backend-api`, 4 `flux-system` controllers), each with value `1`. Any extra or missing pod: see Review Focus 1.
 
-- [ ] **Step 5: Queries return data (criterion 3)**
+- [ ] **Step 4: Queries return data (criterion 3)**
 
 ```sh
 q 'sum by (endpoint, status) (backend_api_requests_total)'
@@ -383,7 +350,7 @@ q 'count(kube_pod_container_status_restarts_total)'
 
 Expected: each returns at least one row.
 
-- [ ] **Step 6: Data survives a VMSingle restart (criterion 4)**
+- [ ] **Step 5: Data survives a VMSingle restart (criterion 4)**
 
 ```sh
 T=$(( $(date +%s) - 120 ))
@@ -396,9 +363,9 @@ q 'count(up)' "$T"
 
 Expected: both queries return the same non-zero count for time `T`.
 
-- [ ] **Step 7: Record the result**
+- [ ] **Step 6: Record the result**
 
-Report the output of Steps 2–6 to the user, with the vmui access command from the spec:
+Report the output of Steps 1–5 to the user, with the vmui access command from the spec:
 
 ```sh
 kubectl -n monitoring port-forward "svc/${VMSINGLE}" 8428:8428
