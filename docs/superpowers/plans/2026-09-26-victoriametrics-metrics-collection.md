@@ -317,7 +317,7 @@ If the service names differ, use the ones `get svc` lists. Give VMAgent a minute
 
 Open http://localhost:8429/targets.
 
-Expected: every target `up`. The `annotations-discovery` group has exactly 8 targets: 2 `ml-api`, 2 `backend-api`, 4 `flux-system` controllers. Groups for kubelet, kube-state-metrics, CoreDNS and the VictoriaMetrics components are also present. Any extra or missing pod: see Review Focus 1.
+Expected: every target `up`. The `monitoring/annotations-discovery` group (the operator sets `job` to `<namespace>/<VMPodScrape name>`) has exactly 8 targets: 2 `ml-api`, 2 `backend-api`, 4 `flux-system` controllers. Groups for kubelet, kube-state-metrics, CoreDNS and the VictoriaMetrics components are also present. Any extra or missing pod: see Review Focus 1.
 
 - [ ] **Step 5: Data (criterion 3)**
 
