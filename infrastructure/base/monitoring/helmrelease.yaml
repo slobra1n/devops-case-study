@@ -28,18 +28,27 @@ spec:
     prometheus-node-exporter:
       enabled: true
     # k3s runs apiserver, scheduler, controller-manager and kubelet in one
-    # process with one metrics registry. The controller-manager and scheduler
-    # serve no endpoint of their own, and the kubelet's /metrics returns the
-    # same data as the API server's. Collect it once, from the API server
-    # (no label drops); keep the kubelet's own cAdvisor/probes/resource endpoints.
+    # process with one metrics registry, served identically on every /metrics
+    # endpoint (https://docs.k3s.io/reference/metrics). Scrape it once, from the
+    # kubelet: it runs on every node, and the standard kubelet rules expect
+    # job="kubelet", metrics_path="/metrics". The API server scrape stays off.
     # ponytail: ~42k series, mostly histogram buckets; drop apiserver_/etcd_
     # *_bucket series if VMSingle's disk grows too fast.
     kubeApiServer:
-      enabled: true
+      enabled: false
     kubelet:
       vmScrapes:
         kubelet:
-          enabled: false
+          spec:
+            # Replaces the chart default for /metrics only. The default also
+            # drops `name` (meant for cAdvisor), which would merge the
+            # per-controller workqueue_* and other name-keyed series.
+            metricRelabelConfigs:
+              - action: labeldrop
+                regex: (uid)
+              - action: drop
+                source_labels: [__name__]
+                regex: (rest_client_request_duration_seconds_bucket|rest_client_request_duration_seconds_sum|rest_client_request_duration_seconds_count)
     kubeControllerManager:
       enabled: false
     kubeScheduler:

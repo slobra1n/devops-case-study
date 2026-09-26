@@ -36,13 +36,13 @@ Namespace: `monitoring`.
 | kube-state-metrics | on | Restarts, readiness and replicas for every pod |
 | Flux object status (`gotk_resource_info`) | on | Ready/suspended per Kustomization, HelmRelease, GitRepository, HelmRepository; Flux's official kube-state-metrics custom resource config, on the existing kube-state-metrics |
 | kubelet cAdvisor, probes, resource scrapes | on | CPU and memory for every container, probe results |
-| kubelet `/metrics` scrape | off | On k3s it returns the same registry as the API server; collected once through the API server scrape |
+| kubelet `/metrics` scrape | on | On k3s the one scrape of the shared registry: kubelet, apiserver, scheduler, controller-manager and datastore (`etcd_*`, SQLite via kine) metrics, all as `job="kubelet"`. Runs on every node; the standard kubelet rules expect it. Keeps the `name` label (the chart default drops it). About 42k series |
 | CoreDNS scrape | on | Cluster DNS |
 | Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks ml-api `/health` and backend-api `/ready` through their Services, like a client; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
 | node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
 | Grafana, Alertmanager, vmalert, default rules, default dashboards | off | Out of scope |
-| controller-manager, scheduler, etcd scrapes | off | k3s runs them inside its one process and serves no separate endpoints (10257/10259 aren't listening). Their metrics (`scheduler_*`, controller `workqueue_*`, `etcd_*` via kine/SQLite) come through the API server scrape |
-| API server scrape | on | API latency and errors. On k3s it is the one scrape of the shared registry: apiserver, scheduler, controller-manager, kubelet (`kubelet_*`) and datastore metrics. About 42k series, chart defaults, no drops |
+| controller-manager, scheduler, etcd scrapes | off | k3s runs them inside its one process and serves no separate endpoints (10257/10259 aren't listening). Their metrics come through the kubelet `/metrics` scrape |
+| API server scrape | off | On k3s it returns the same registry as the kubelet's `/metrics` ([k3s docs](https://docs.k3s.io/reference/metrics): scrape a single endpoint). Its alert groups are then not installed; add k3s-adapted ones with alerting |
 
 ## Annotation rule
 
@@ -150,9 +150,9 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
    - `node_filesystem_avail_bytes{mountpoint="/var/lib/rancher/k3s"}` (the node's
      disk that holds the `local-path` PVCs; the node container's own `/` is
      overlay and excluded by the chart)
-   - `apiserver_request_total`
-   - `scheduler_schedule_attempts_total` and `workqueue_adds_total{name="deployment"}`
-     (controller-manager), each from the `apiserver` job only
+   - `apiserver_request_total`, `scheduler_schedule_attempts_total` and
+     `workqueue_adds_total{name="deployment"}` (controller-manager), each from
+     `job="kubelet", metrics_path="/metrics"` only
 4. After deleting the VMSingle pod, data from before the deletion is still
    queryable.
 
