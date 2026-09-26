@@ -146,7 +146,9 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
    - `gotk_resource_info` (one series per Flux object, with its `ready` state)
    - `pg_up` (1 when the exporter can reach postgres)
    - `probe_success` (1 for each of the two app endpoints)
-   - `node_filesystem_avail_bytes{mountpoint="/"}`
+   - `node_filesystem_avail_bytes{mountpoint="/var/lib/rancher/k3s"}` (the node's
+     disk that holds the `local-path` PVCs; the node container's own `/` is
+     overlay and excluded by the chart)
 4. After deleting the VMSingle pod, data from before the deletion is still
    queryable.
 
