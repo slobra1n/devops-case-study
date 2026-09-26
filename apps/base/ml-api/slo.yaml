@@ -20,6 +20,6 @@ slos:
     sli:
       events:
         error_query: |
-          sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
-          - sum(rate(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[{{.window}}]))
-        total_query: sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
+          sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
+          - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[{{.window}}]))
+        total_query: sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))

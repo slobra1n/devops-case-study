@@ -42,7 +42,12 @@ Only user-facing requests count: `POST /predict` and `POST /process`, the
 requests the load-generator sends. `/health`, `/ready` and `/metrics` are
 probes and scrapes, not user requests, and are excluded. A 5xx response is bad;
 every other response, including 4xx, is good (the workbook's HTTP rule). Each
-service is measured across all its pods: rate per pod first, then sum.
+service is measured across all its pods: `increase` per pod first, then sum.
+MetricsQL's `rate` starts from a series' first sample, so it drops what a pod
+counted before its first scrape. The backend creates its 5xx series only at
+the first error, so `rate` hid a short 503 burst entirely in the failure test;
+`increase` counts a new series' small first value. The error/total ratio
+means the same either way.
 
 | Service | SLO | Source | Bad events / valid events |
 |---|---|---|---|
@@ -61,13 +66,13 @@ Queries (`{{.window}}` is filled in by Sloth):
 
 ```
 # backend-api process-availability
-error: sum(rate(backend_api_requests_total{endpoint="/process",status=~"5.."}[{{.window}}])) or vector(0)
-total: sum(rate(backend_api_requests_total{endpoint="/process"}[{{.window}}]))
+error: sum(increase(backend_api_requests_total{endpoint="/process",status=~"5.."}[{{.window}}])) or vector(0)
+total: sum(increase(backend_api_requests_total{endpoint="/process"}[{{.window}}]))
 
 # backend-api process-latency
-error: sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[{{.window}}]))
-       - sum(rate(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[{{.window}}]))
-total: sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[{{.window}}]))
+error: sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[{{.window}}]))
+       - sum(increase(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[{{.window}}]))
+total: sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[{{.window}}]))
 
 # ml-api predict-availability
 error: sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
@@ -75,9 +80,9 @@ error: sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}
 total: sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
 
 # ml-api predict-latency
-error: sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
-       - sum(rate(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[{{.window}}]))
-total: sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
+error: sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
+       - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[{{.window}}]))
+total: sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
 ```
 
 A status series only exists after its first occurrence, so the backend has no
@@ -269,6 +274,8 @@ chart's 20Gi (devops-cs stays at 5Gi).
 - On devops-cs, disk use (about 15 GB estimated) exceeds the nominal 5Gi
   request; `local-path` doesn't enforce it.
 - No notification leaves the cluster.
+- The server-side queries rely on MetricsQL's `increase`; Prometheus'
+  `increase` would drop a new series' first value again.
 - The drift check only runs when someone runs it; there is no CI.
 
 ## Out of scope

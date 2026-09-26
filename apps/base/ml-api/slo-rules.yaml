@@ -106,11 +106,11 @@ spec:
     rules:
     - record: slo:sli_error:ratio_rate5m
       expr: |
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[5m]))
-        - sum(rate(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[5m]))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[5m]))
+        - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[5m]))
         )
         /
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[5m])))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[5m])))
       labels:
         sloth_id: ml-api-predict-latency
         sloth_service: ml-api
@@ -118,11 +118,11 @@ spec:
         sloth_window: 5m
     - record: slo:sli_error:ratio_rate30m
       expr: |
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[30m]))
-        - sum(rate(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[30m]))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[30m]))
+        - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[30m]))
         )
         /
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[30m])))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[30m])))
       labels:
         sloth_id: ml-api-predict-latency
         sloth_service: ml-api
@@ -130,11 +130,11 @@ spec:
         sloth_window: 30m
     - record: slo:sli_error:ratio_rate1h
       expr: |
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[1h]))
-        - sum(rate(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[1h]))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[1h]))
+        - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[1h]))
         )
         /
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[1h])))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[1h])))
       labels:
         sloth_id: ml-api-predict-latency
         sloth_service: ml-api
@@ -142,11 +142,11 @@ spec:
         sloth_window: 1h
     - record: slo:sli_error:ratio_rate2h
       expr: |
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[2h]))
-        - sum(rate(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[2h]))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[2h]))
+        - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[2h]))
         )
         /
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[2h])))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[2h])))
       labels:
         sloth_id: ml-api-predict-latency
         sloth_service: ml-api
@@ -154,11 +154,11 @@ spec:
         sloth_window: 2h
     - record: slo:sli_error:ratio_rate6h
       expr: |
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[6h]))
-        - sum(rate(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[6h]))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[6h]))
+        - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[6h]))
         )
         /
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[6h])))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[6h])))
       labels:
         sloth_id: ml-api-predict-latency
         sloth_service: ml-api
@@ -166,11 +166,11 @@ spec:
         sloth_window: 6h
     - record: slo:sli_error:ratio_rate1d
       expr: |
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[1d]))
-        - sum(rate(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[1d]))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[1d]))
+        - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[1d]))
         )
         /
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[1d])))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[1d])))
       labels:
         sloth_id: ml-api-predict-latency
         sloth_service: ml-api
@@ -178,11 +178,11 @@ spec:
         sloth_window: 1d
     - record: slo:sli_error:ratio_rate3d
       expr: |
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[3d]))
-        - sum(rate(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[3d]))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[3d]))
+        - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[3d]))
         )
         /
-        (sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[3d])))
+        (sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[3d])))
       labels:
         sloth_id: ml-api-predict-latency
         sloth_service: ml-api

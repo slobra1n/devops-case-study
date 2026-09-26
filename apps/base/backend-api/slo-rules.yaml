@@ -10,9 +10,9 @@ spec:
     rules:
     - record: slo:sli_error:ratio_rate5m
       expr: |
-        (sum(rate(backend_api_requests_total{endpoint="/process",status=~"5.."}[5m])) or vector(0))
+        (sum(increase(backend_api_requests_total{endpoint="/process",status=~"5.."}[5m])) or vector(0))
         /
-        (sum(rate(backend_api_requests_total{endpoint="/process"}[5m])))
+        (sum(increase(backend_api_requests_total{endpoint="/process"}[5m])))
       labels:
         sloth_id: backend-api-process-availability
         sloth_service: backend-api
@@ -20,9 +20,9 @@ spec:
         sloth_window: 5m
     - record: slo:sli_error:ratio_rate30m
       expr: |
-        (sum(rate(backend_api_requests_total{endpoint="/process",status=~"5.."}[30m])) or vector(0))
+        (sum(increase(backend_api_requests_total{endpoint="/process",status=~"5.."}[30m])) or vector(0))
         /
-        (sum(rate(backend_api_requests_total{endpoint="/process"}[30m])))
+        (sum(increase(backend_api_requests_total{endpoint="/process"}[30m])))
       labels:
         sloth_id: backend-api-process-availability
         sloth_service: backend-api
@@ -30,9 +30,9 @@ spec:
         sloth_window: 30m
     - record: slo:sli_error:ratio_rate1h
       expr: |
-        (sum(rate(backend_api_requests_total{endpoint="/process",status=~"5.."}[1h])) or vector(0))
+        (sum(increase(backend_api_requests_total{endpoint="/process",status=~"5.."}[1h])) or vector(0))
         /
-        (sum(rate(backend_api_requests_total{endpoint="/process"}[1h])))
+        (sum(increase(backend_api_requests_total{endpoint="/process"}[1h])))
       labels:
         sloth_id: backend-api-process-availability
         sloth_service: backend-api
@@ -40,9 +40,9 @@ spec:
         sloth_window: 1h
     - record: slo:sli_error:ratio_rate2h
       expr: |
-        (sum(rate(backend_api_requests_total{endpoint="/process",status=~"5.."}[2h])) or vector(0))
+        (sum(increase(backend_api_requests_total{endpoint="/process",status=~"5.."}[2h])) or vector(0))
         /
-        (sum(rate(backend_api_requests_total{endpoint="/process"}[2h])))
+        (sum(increase(backend_api_requests_total{endpoint="/process"}[2h])))
       labels:
         sloth_id: backend-api-process-availability
         sloth_service: backend-api
@@ -50,9 +50,9 @@ spec:
         sloth_window: 2h
     - record: slo:sli_error:ratio_rate6h
       expr: |
-        (sum(rate(backend_api_requests_total{endpoint="/process",status=~"5.."}[6h])) or vector(0))
+        (sum(increase(backend_api_requests_total{endpoint="/process",status=~"5.."}[6h])) or vector(0))
         /
-        (sum(rate(backend_api_requests_total{endpoint="/process"}[6h])))
+        (sum(increase(backend_api_requests_total{endpoint="/process"}[6h])))
       labels:
         sloth_id: backend-api-process-availability
         sloth_service: backend-api
@@ -60,9 +60,9 @@ spec:
         sloth_window: 6h
     - record: slo:sli_error:ratio_rate1d
       expr: |
-        (sum(rate(backend_api_requests_total{endpoint="/process",status=~"5.."}[1d])) or vector(0))
+        (sum(increase(backend_api_requests_total{endpoint="/process",status=~"5.."}[1d])) or vector(0))
         /
-        (sum(rate(backend_api_requests_total{endpoint="/process"}[1d])))
+        (sum(increase(backend_api_requests_total{endpoint="/process"}[1d])))
       labels:
         sloth_id: backend-api-process-availability
         sloth_service: backend-api
@@ -70,9 +70,9 @@ spec:
         sloth_window: 1d
     - record: slo:sli_error:ratio_rate3d
       expr: |
-        (sum(rate(backend_api_requests_total{endpoint="/process",status=~"5.."}[3d])) or vector(0))
+        (sum(increase(backend_api_requests_total{endpoint="/process",status=~"5.."}[3d])) or vector(0))
         /
-        (sum(rate(backend_api_requests_total{endpoint="/process"}[3d])))
+        (sum(increase(backend_api_requests_total{endpoint="/process"}[3d])))
       labels:
         sloth_id: backend-api-process-availability
         sloth_service: backend-api
@@ -92,11 +92,11 @@ spec:
     rules:
     - record: slo:sli_error:ratio_rate5m
       expr: |
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[5m]))
-        - sum(rate(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[5m]))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[5m]))
+        - sum(increase(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[5m]))
         )
         /
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[5m])))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[5m])))
       labels:
         sloth_id: backend-api-process-latency
         sloth_service: backend-api
@@ -104,11 +104,11 @@ spec:
         sloth_window: 5m
     - record: slo:sli_error:ratio_rate30m
       expr: |
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[30m]))
-        - sum(rate(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[30m]))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[30m]))
+        - sum(increase(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[30m]))
         )
         /
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[30m])))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[30m])))
       labels:
         sloth_id: backend-api-process-latency
         sloth_service: backend-api
@@ -116,11 +116,11 @@ spec:
         sloth_window: 30m
     - record: slo:sli_error:ratio_rate1h
       expr: |
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[1h]))
-        - sum(rate(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[1h]))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[1h]))
+        - sum(increase(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[1h]))
         )
         /
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[1h])))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[1h])))
       labels:
         sloth_id: backend-api-process-latency
         sloth_service: backend-api
@@ -128,11 +128,11 @@ spec:
         sloth_window: 1h
     - record: slo:sli_error:ratio_rate2h
       expr: |
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[2h]))
-        - sum(rate(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[2h]))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[2h]))
+        - sum(increase(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[2h]))
         )
         /
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[2h])))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[2h])))
       labels:
         sloth_id: backend-api-process-latency
         sloth_service: backend-api
@@ -140,11 +140,11 @@ spec:
         sloth_window: 2h
     - record: slo:sli_error:ratio_rate6h
       expr: |
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[6h]))
-        - sum(rate(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[6h]))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[6h]))
+        - sum(increase(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[6h]))
         )
         /
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[6h])))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[6h])))
       labels:
         sloth_id: backend-api-process-latency
         sloth_service: backend-api
@@ -152,11 +152,11 @@ spec:
         sloth_window: 6h
     - record: slo:sli_error:ratio_rate1d
       expr: |
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[1d]))
-        - sum(rate(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[1d]))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[1d]))
+        - sum(increase(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[1d]))
         )
         /
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[1d])))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[1d])))
       labels:
         sloth_id: backend-api-process-latency
         sloth_service: backend-api
@@ -164,11 +164,11 @@ spec:
         sloth_window: 1d
     - record: slo:sli_error:ratio_rate3d
       expr: |
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[3d]))
-        - sum(rate(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[3d]))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[3d]))
+        - sum(increase(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[3d]))
         )
         /
-        (sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[3d])))
+        (sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[3d])))
       labels:
         sloth_id: backend-api-process-latency
         sloth_service: backend-api
