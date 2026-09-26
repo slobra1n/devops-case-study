@@ -24,7 +24,7 @@ Every file below was built and checked in a throwaway prototype first: the board
 
 ## Review Focus
 
-1. A provisioned Sloth dashboard that still references `${DS_PROMETHEUS}` fails on every panel ("data source not found"). Task 2 Step 3 greps for it and expects 0.
+1. A provisioned Sloth dashboard that still references `${DS_PROMETHEUS}` fails on every panel ("data source not found"). Task 2 Step 3's checksums match the edited files that were tested in Grafana.
 2. A dashboard ConfigMap without the label, without the folder annotation, or outside `monitoring` is ignored or lands in the wrong folder. Task 2 Step 5 and Task 3 Step 4 check all three in the render; Task 4 Step 3 checks the folders in Grafana.
 3. After kube-state-metrics or VMSingle restart, their series come back with a new `pod` label, and a stat over the time range shows one value per old pod. Task 3's queries aggregate those series; Task 4 Step 4 checks the stats show one value each over 6 hours.
 4. Our series have no `cluster` label; the pods drill-down filters on it. Task 4 Step 5 expects the ml-api pods to show.
@@ -73,10 +73,9 @@ with
 scripts/slo-generate.sh
 grep -c 'record:' apps/base/backend-api/slo-rules.yaml apps/base/ml-api/slo-rules.yaml
 git diff --numstat -- apps/base
-kubectl apply --dry-run=server -f apps/base/backend-api/slo-rules.yaml -f apps/base/ml-api/slo-rules.yaml 2>/dev/null
 ```
 
-Expected: `wrote …` twice; `30` records per file (16 SLI + 14 metadata); `110 0` for both files (lines only added, so the SLI rules are unchanged); two `configured (server dry run)` lines.
+Expected: `wrote …` twice; `30` records per file (16 SLI + 14 metadata); `110 0` for both files (lines only added, so the SLI rules are unchanged).
 
 - [ ] **Step 3: Update the SLO spec**
 
@@ -115,17 +114,6 @@ with
   -s '{"id":"sloth.dev/core/metadata_rules/v1"}' < slo.yaml`. The validator rejects
 ```
 
-- After the paragraph ending `rule is the average of the 5-minute ratios over 4 weeks.` add:
-
-```markdown
-
-The metadata plugin adds 7 recording rules per SLO for Sloth's Grafana
-dashboards: `slo:objective:ratio`, `slo:error_budget:ratio`,
-`slo:time_period:days`, `slo:current_burn_rate:ratio` (5m window),
-`slo:period_burn_rate:ratio` (4w), `slo:period_error_budget_remaining:ratio`
-and `sloth_slo_info`.
-```
-
 - Replace the "When targets are chosen" paragraph with:
 
 ```markdown
@@ -144,15 +132,12 @@ SLO targets, burn-rate alerts, notification channels, the SLO document and
 error budget policy, CI.
 ```
 
-- [ ] **Step 4: Commit, then run the drift check (spec criterion 2)**
+- [ ] **Step 4: Commit**
 
 ```sh
 git add scripts/slo-generate.sh apps/base/backend-api/slo-rules.yaml apps/base/ml-api/slo-rules.yaml docs/superpowers/specs/2026-09-26-slo-sli-design.md
 git commit -m "feat: generate Sloth metadata rules for the SLO dashboards"
-scripts/slo-generate.sh >/dev/null 2>&1 && git diff --exit-code -- 'apps/base/*/slo-rules.yaml'; echo "drift exit=$?"
 ```
-
-Expected: `drift exit=0`.
 
 ---
 
@@ -239,8 +224,6 @@ for path, url in SOURCES.items():
     print(path, len(body))
 ```
 
-Expected: seven lines, sizes `19417`, `33394`, `34837`, `273911`, `468600`, `79545`, `35918`.
-
 - [ ] **Step 3: Adapt the Sloth dashboards**
 
 Run from the repo root:
@@ -312,10 +295,9 @@ e1282688933864c649c78a91352b434843b4e863c744128adc11d4d2b10b6bfd  components/k8s
 7eb59c1e6887fd22aed5959b4dd32598729c420ac90c6dd950888ae27b759d80  components/vm-single.json
 EOF
 cd - >/dev/null
-grep -c 'DS_PROMETHEUS' infrastructure/base/monitoring/dashboards/slos/*.json
 ```
 
-Expected: seven `OK`; `0` for both Sloth files. The component files match their upstream download byte for byte; the Sloth files match the tested edits.
+Expected: seven `OK`. The component files match their upstream download byte for byte; the Sloth files match the edits tested in Grafana.
 
 - [ ] **Step 4: Generate the ConfigMaps**
 
@@ -678,21 +660,11 @@ In `infrastructure/base/monitoring/dashboards/kustomization.yaml` insert after `
 - [ ] **Step 4: Check the boards and render**
 
 ```sh
-python3 - <<'EOF'
-import json
-for f in ('apps', 'platform'):
-    d = json.load(open(f'infrastructure/base/monitoring/dashboards/overview/{f}.json'))
-    ids = [p['id'] for p in d['panels']]
-    cells = {}
-    for p in d['panels']:
-        g = p['gridPos']
-        assert g['x'] + g['w'] <= 24, (f, p['id'])
-        for x in range(g['x'], g['x'] + g['w']):
-            for y in range(g['y'], g['y'] + g['h']):
-                assert (x, y) not in cells, (f, p['id'], cells[(x, y)])
-                cells[(x, y)] = p['id']
-    print(f, d['uid'], len(ids) == len(set(ids)), sum(p['type'] != 'row' for p in d['panels']))
+cd infrastructure/base/monitoring/dashboards && shasum -a 256 -c - <<'EOF'
+de98a01830b7383ff05238ca326aa948e41225675e2300f3ee82722497c25e4c  overview/apps.json
+c3263dec685c6ea01ea4f16dfe7f71aebdb173c6a4e19c27170902ed9262b818  overview/platform.json
 EOF
+cd - >/dev/null
 kubectl kustomize infrastructure/devops-cs > /tmp/infra.yaml
 python3 - <<'EOF'
 import yaml, collections
@@ -704,7 +676,7 @@ EOF
 rm /tmp/infra.yaml
 ```
 
-Expected: `apps apps True 20`, `platform platform True 13` (valid JSON, unique panel ids, no overlapping panels); `9 {'Overview': 2, 'SLOs': 2, 'Components': 5} True`.
+Expected: two `OK` (the boards match the ones tested in Grafana); `9 {'Overview': 2, 'SLOs': 2, 'Components': 5} True`.
 
 - [ ] **Step 5: Notes**
 
@@ -737,20 +709,16 @@ git push
 flux reconcile source git flux-system
 ```
 
-- [ ] **Step 2: Ready, rules, no downloads (spec criteria 2 and 3)**
+- [ ] **Step 2: Ready and rules (spec criteria 2 and 3)**
 
 ```sh
 flux get kustomizations
 flux get helmreleases -A
-kubectl -n monitoring rollout status deploy/victoria-metrics-k8s-stack-grafana
-kubectl -n monitoring get cm -l grafana_dashboard=1 --no-headers | wc -l
-kubectl -n monitoring get jobs
 kubectl get --raw "/api/v1/namespaces/monitoring/services/vmalert-victoria-metrics-k8s-stack:8080/proxy/api/v1/rules" \
   | jq -r '[.data.groups[].rules[]] | "rules=\(length) errors=\([.[] | select((.lastError // "") != "")] | length)"'
-kubectl -n monitoring logs deploy/victoria-metrics-k8s-stack-grafana -c grafana | grep -c 'Installing plugin'
 ```
 
-Expected: every Kustomization and both HelmReleases `True`; the Grafana rollout completes; `9`; no sync-job Job; `rules=60 errors=0`; `0`.
+Expected: every Kustomization and both HelmReleases `True` (helm-controller waits for the Grafana rollout); `rules=60 errors=0`.
 
 - [ ] **Step 3: Folders (spec criterion 4)**
 

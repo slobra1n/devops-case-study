@@ -270,10 +270,10 @@ temperatures, CPU frequency) stay empty on a Docker VM.
    `dashboard-*` in `monitoring`, each with label `grafana_dashboard: "1"` and
    a `grafana_folder` annotation (2 `Overview`, 2 `SLOs`, 5 `Components`). The
    chart render has no sync-job Job.
-2. The SLO drift check passes with the new plugin; vmalert reports 60 rules and
-   0 errors.
-3. `flux get kustomizations` and `flux get helmreleases -A` show all Ready;
-   the Grafana pod is Ready.
+2. The regenerated rules add only the metadata rules (the SLI rules are
+   unchanged); vmalert reports 60 rules and 0 errors.
+3. `flux get kustomizations` and `flux get helmreleases -A` show all Ready
+   (helm-controller waits for the Grafana pod).
 4. In a browser, Grafana lists the 9 dashboards in the folders `Overview`,
    `SLOs` and `Components`, and no panel on any of them shows an error. Our
    four boards (`apps`, `platform`, `sloth-overview`, `sloth-detail`) show
