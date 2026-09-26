@@ -6,7 +6,6 @@ metadata:
 spec:
   dependsOn:
     - name: databases
-    - name: infra-controllers
   interval: 10m
   retryInterval: 1m
   sourceRef:

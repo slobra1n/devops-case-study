@@ -4,7 +4,7 @@
 
 **Goal:** Collect metrics from every pod in the cluster into VictoriaMetrics with one annotation-based scrape rule.
 
-**Architecture:** Monitoring is its own layer under `infrastructure/monitoring/`, shared by all clusters, with two Flux Kustomizations in `clusters/devops-cs/monitoring.yaml`: `monitoring-controllers` installs the trimmed `victoria-metrics-k8s-stack` Helm chart; `monitoring-configs` then applies one `VMPodScrape` that implements the `prometheus.io/*` annotations, as documented by the VictoriaMetrics operator. ml-api and backend-api opt in with those annotations. Nothing depends on monitoring.
+**Architecture:** Every layer has the same shape: `<layer>/base/<component>/` (definition), `<layer>/<cluster>/<component>/` (cluster selection and differences), `clusters/<cluster>/<layer>.yaml` (Flux wiring). Monitoring is `infrastructure/base/monitoring/`: one HelmRelease for the trimmed `victoria-metrics-k8s-stack` chart that also ships the `VMPodScrape` implementing the `prometheus.io/*` annotations (chart `extraObjects`). The `infrastructure` Flux Kustomization applies it and nothing waits for it. ml-api and backend-api opt in with the annotations.
 
 **Tech Stack:** Flux v2.9.5 (`helm.toolkit.fluxcd.io/v2`, `source.toolkit.fluxcd.io/v1`), Kustomize via `kubectl kustomize`, `victoria-metrics-k8s-stack` 0.93.0, k3d/k3s.
 
@@ -16,8 +16,8 @@
 - Chart: `victoria-metrics-k8s-stack` version `0.93.0` from `https://victoriametrics.github.io/helm-charts/` (latest release, 2026-09-20).
 - VMSingle: 5Gi PVC on the cluster's default StorageClass (`local-path`), `retentionPeriod: "14d"`.
 - Off: Grafana, Alertmanager, vmalert, default rules, default dashboards, node-exporter, API server, controller-manager, scheduler, etcd.
-- Scrape rule: one `VMPodScrape` `monitoring/annotations-discovery` in `monitoring-configs`, based on the VictoriaMetrics operator's [annotation auto-discovery example](https://docs.victoriametrics.com/operator/integrations/prometheus/); no `inlineScrapeConfig`.
-- Layout: `infrastructure/monitoring/{controllers,configs}/victoria-metrics/`, shared by all clusters (no per-cluster overlay). Per-cluster differences are `patches:` in `clusters/<cluster>/monitoring.yaml`. `infrastructure/controllers` and `infrastructure/configs` stay as empty placeholders on their original paths.
+- Scrape rule: one `VMPodScrape` `monitoring/annotations-discovery`, shipped in the HelmRelease's `extraObjects`, based on the VictoriaMetrics operator's [annotation auto-discovery example](https://docs.victoriametrics.com/operator/integrations/prometheus/); no `inlineScrapeConfig`.
+- Layout: `infrastructure/base/monitoring/` + `infrastructure/devops-cs/monitoring/`, the same shape as `databases/` and `apps/`. Per-cluster differences are Kustomize `patches:` in `infrastructure/<cluster>/monitoring/kustomization.yaml`. No `controllers/` / `configs/` folders and no `infra-controllers` / `infra-configs` units.
 - `databases` and `apps` do not depend on monitoring. No ingress.
 - No application code changes. Only pod-template annotations in `apps/base`.
 - No `git push` in this plan. The user pushes; Task 3 runs after that.
@@ -25,34 +25,30 @@
 ## Review Focus
 
 1. An undeclared port, a multi-port pod or an annotated chart pod shows up as a missing or extra target. Task 3 checks exactly 8 pods, each scraped once.
-2. CRDs missing on install or stale after upgrades. The chart installs them (Flux default `Create`), the HelmRelease sets `upgrade.crds: CreateReplace`, and `monitoring-configs` waits for `monitoring-controllers` before applying the `VMPodScrape`. Task 3 checks every Kustomization and the HelmRelease are Ready.
+2. CRDs missing on install or stale after upgrades. Helm installs the chart's CRDs before its templates and `extraObjects` (Flux default `Create`), and the HelmRelease sets `upgrade.crds: CreateReplace`. Task 3 checks every Kustomization and the HelmRelease are Ready.
 3. Metrics lost on VMSingle restart. Task 3 checks the PVC is Bound and data from before a pod deletion is still visible.
 
 ---
 
-## Task 1: Monitoring layer with the VictoriaMetrics stack
+## Task 1: Infrastructure layer with the VictoriaMetrics stack
+
+Every layer has the same shape: `<layer>/base/<component>/` (definition), `<layer>/<cluster>/<component>/` (this cluster's selection and differences), `clusters/<cluster>/<layer>.yaml` (Flux wiring only).
 
 **Files:**
-- Delete: `infrastructure/kustomization.yaml` (unused)
-- Create: `infrastructure/monitoring/controllers/kustomization.yaml`
-- Create: `infrastructure/monitoring/controllers/victoria-metrics/namespace.yaml`
-- Create: `infrastructure/monitoring/controllers/victoria-metrics/helmrepository.yaml`
-- Create: `infrastructure/monitoring/controllers/victoria-metrics/helmrelease.yaml`
-- Create: `infrastructure/monitoring/controllers/victoria-metrics/kustomization.yaml`
-- Create: `infrastructure/monitoring/configs/kustomization.yaml`
-- Create: `infrastructure/monitoring/configs/victoria-metrics/vmpodscrape.yaml`
-- Create: `infrastructure/monitoring/configs/victoria-metrics/kustomization.yaml`
-- Create: `clusters/devops-cs/monitoring.yaml`
+- Delete: `infrastructure/kustomization.yaml`, `infrastructure/controllers/kustomization.yaml`, `infrastructure/configs/kustomization.yaml`
+- Create: `infrastructure/base/monitoring/namespace.yaml`, `helmrepository.yaml`, `helmrelease.yaml`, `kustomization.yaml`
+- Create: `infrastructure/devops-cs/kustomization.yaml`, `infrastructure/devops-cs/monitoring/kustomization.yaml`
+- Modify: `clusters/devops-cs/infrastructure.yaml` (one `infrastructure` Kustomization), `clusters/devops-cs/databases.yaml` and `clusters/devops-cs/apps.yaml` (drop `dependsOn: infra-controllers`)
 
-- [ ] **Step 1: Remove the unused top-level kustomization**
+- [ ] **Step 1: Remove the old layout**
 
 ```sh
-git rm -q infrastructure/kustomization.yaml
+git rm -q infrastructure/kustomization.yaml infrastructure/controllers/kustomization.yaml infrastructure/configs/kustomization.yaml
 ```
 
-- [ ] **Step 2: Write the definitions**
+- [ ] **Step 2: Write the base**
 
-`infrastructure/monitoring/controllers/victoria-metrics/namespace.yaml`:
+`infrastructure/base/monitoring/namespace.yaml`:
 
 ```yaml
 apiVersion: v1
@@ -61,7 +57,7 @@ metadata:
   name: monitoring
 ```
 
-`infrastructure/monitoring/controllers/victoria-metrics/helmrepository.yaml`:
+`infrastructure/base/monitoring/helmrepository.yaml`:
 
 ```yaml
 apiVersion: source.toolkit.fluxcd.io/v1
@@ -74,7 +70,7 @@ spec:
   url: https://victoriametrics.github.io/helm-charts/
 ```
 
-`infrastructure/monitoring/controllers/victoria-metrics/helmrelease.yaml`:
+`infrastructure/base/monitoring/helmrelease.yaml`:
 
 ```yaml
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -121,9 +117,44 @@ spec:
           resources:
             requests:
               storage: 5Gi
+    # Objects that use the chart's CRDs. Helm installs the CRDs first, so they
+    # can ship in the same release (the chart creates VMAgent/VMSingle the same way).
+    extraObjects:
+      # Scrape every pod that opts in with prometheus.io/* annotations. Based on
+      # the VictoriaMetrics operator docs, "Auto-discovery for prometheus.io
+      # annotations": https://docs.victoriametrics.com/operator/integrations/prometheus/
+      - apiVersion: operator.victoriametrics.com/v1beta1
+        kind: VMPodScrape
+        metadata:
+          name: annotations-discovery
+          namespace: monitoring
+        spec:
+          # Every pod in every namespace; the relabel rules keep only annotated ones.
+          namespaceSelector:
+            any: true
+          selector: {}
+          podMetricsEndpoints:
+            - relabelConfigs:
+                - action: drop
+                  source_labels: [__meta_kubernetes_pod_container_init]
+                  regex: "true"
+                - action: keep_if_equal
+                  source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_container_port_number]
+                - action: keep
+                  source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                  regex: "true"
+                # regex (.+) keeps the default /metrics when the path annotation
+                # is absent (the Flux controllers don't set it).
+                - action: replace
+                  source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                  target_label: __metrics_path__
+                  regex: (.+)
+                - action: replace
+                  source_labels: [__meta_kubernetes_pod_node_name]
+                  target_label: node
 ```
 
-`infrastructure/monitoring/controllers/victoria-metrics/kustomization.yaml`:
+`infrastructure/base/monitoring/kustomization.yaml`:
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -134,81 +165,35 @@ resources:
   - helmrelease.yaml
 ```
 
-`infrastructure/monitoring/configs/victoria-metrics/vmpodscrape.yaml`:
+- [ ] **Step 3: Write the cluster overlay**
 
-```yaml
-# Based on the VictoriaMetrics operator docs, "Auto-discovery for
-# prometheus.io annotations":
-# https://docs.victoriametrics.com/operator/integrations/prometheus/
-apiVersion: operator.victoriametrics.com/v1beta1
-kind: VMPodScrape
-metadata:
-  name: annotations-discovery
-  namespace: monitoring
-spec:
-  # Every pod in every namespace; the relabel rules keep only annotated ones.
-  namespaceSelector:
-    any: true
-  selector: {}
-  podMetricsEndpoints:
-    - relabelConfigs:
-        - action: drop
-          source_labels: [__meta_kubernetes_pod_container_init]
-          regex: "true"
-        - action: keep_if_equal
-          source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_container_port_number]
-        - action: keep
-          source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-          regex: "true"
-        # regex (.+) keeps the default /metrics when the path annotation is
-        # absent (the Flux controllers don't set it).
-        - action: replace
-          source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-          target_label: __metrics_path__
-          regex: (.+)
-        - action: replace
-          source_labels: [__meta_kubernetes_pod_node_name]
-          target_label: node
-```
-
-`infrastructure/monitoring/configs/victoria-metrics/kustomization.yaml`:
+`infrastructure/devops-cs/kustomization.yaml`:
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - vmpodscrape.yaml
+  - monitoring
 ```
 
-- [ ] **Step 3: List the components per step**
-
-`infrastructure/monitoring/controllers/kustomization.yaml`:
+`infrastructure/devops-cs/monitoring/kustomization.yaml`:
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - victoria-metrics
+  - ../../base/monitoring
 ```
 
-`infrastructure/monitoring/configs/kustomization.yaml`:
+- [ ] **Step 4: Flux wiring**
 
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - victoria-metrics
-```
-
-- [ ] **Step 4: Add the Flux Kustomizations**
-
-`clusters/devops-cs/monitoring.yaml`:
+Replace both documents in `clusters/devops-cs/infrastructure.yaml` with one Kustomization:
 
 ```yaml
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: monitoring-controllers
+  name: infrastructure
   namespace: flux-system
 spec:
   interval: 10m
@@ -216,45 +201,29 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./infrastructure/monitoring/controllers
-  prune: true
-  wait: true
----
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: monitoring-configs
-  namespace: flux-system
-spec:
-  dependsOn:
-    - name: monitoring-controllers
-  interval: 10m
-  retryInterval: 1m
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-  path: ./infrastructure/monitoring/configs
+  path: ./infrastructure/devops-cs
   prune: true
   wait: true
 ```
 
-`clusters/devops-cs/infrastructure.yaml` keeps its original paths (`./infrastructure/controllers`, `./infrastructure/configs`).
+Remove `- name: infra-controllers` from `dependsOn` in `clusters/devops-cs/databases.yaml` (drop the now-empty `dependsOn:`) and `clusters/devops-cs/apps.yaml` (keeps `- name: databases`). Otherwise Flux blocks both with "dependency not found".
 
 - [ ] **Step 5: Verify the render and the isolation**
 
 ```sh
-kubectl kustomize infrastructure/monitoring/controllers | grep -E '^kind:'
-kubectl kustomize infrastructure/monitoring/configs | grep -E '^kind:'
-grep -l monitoring clusters/devops-cs/apps.yaml clusters/devops-cs/databases.yaml clusters/devops-cs/infrastructure.yaml
+kubectl kustomize infrastructure/devops-cs | grep -E '^kind:'
+kubectl kustomize infrastructure/devops-cs | grep -c 'kind: VMPodScrape'
+grep -rn 'infra-controllers\|infra-configs' clusters/devops-cs
+grep -rn 'name: infrastructure' clusters/devops-cs/apps.yaml clusters/devops-cs/databases.yaml
 ```
 
-Expected: `kind: Namespace`, `kind: HelmRepository`, `kind: HelmRelease`; then `kind: VMPodScrape`; the `grep -l` prints nothing (nothing depends on monitoring).
+Expected: `kind: Namespace`, `kind: HelmRepository`, `kind: HelmRelease`; `1` (the VMPodScrape inside the HelmRelease values); both `grep -rn` print nothing (no stale units, nothing waits for `infrastructure`).
 
 - [ ] **Step 6: Commit**
 
 ```sh
-git add infrastructure clusters/devops-cs/monitoring.yaml
-git commit -m "feat: add VictoriaMetrics as infrastructure/monitoring layer"
+git add infrastructure clusters/devops-cs
+git commit -m "feat: add VictoriaMetrics as infrastructure/base/monitoring"
 ```
 
 ---

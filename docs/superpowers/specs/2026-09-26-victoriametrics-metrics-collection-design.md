@@ -15,15 +15,14 @@ scrape rule. This step collects and stores metrics only.
   every pod, so VictoriaMetrics needs no per-app configuration.
 - **Storage:** VMSingle on a 5Gi PVC (`local-path` StorageClass), 14 days
   retention. Metrics must survive pod and cluster restarts.
-- **Layout:** monitoring is its own layer under `infrastructure/`
-  (`infrastructure/monitoring/`), with its own Flux Kustomizations, as in
-  Flux's [monitoring example](https://github.com/fluxcd/flux2-monitoring-example).
-  It keeps Flux's `controllers` / `configs` split: controllers install tools and
-  their CRDs, configs hold objects that use those CRDs.
-- **Multi-cluster, no repetition:** infrastructure is defined once and shared by
-  all clusters, with no per-cluster overlay. A cluster that needs something
-  different (e.g. another chart version) patches it in its own
-  `clusters/<cluster>/monitoring.yaml`.
+- **Layout:** every layer (`infrastructure/`, `databases/`, `apps/`) has the
+  same shape: `<layer>/base/<component>/` holds the definition, written once;
+  `<layer>/<cluster>/<component>/` picks it for that cluster and holds that
+  cluster's differences; `clusters/<cluster>/<layer>.yaml` is Flux wiring only.
+  Monitoring is the component `infrastructure/base/monitoring/`.
+- **Multi-cluster, no repetition:** definitions exist once in `base/`. A cluster
+  that needs something different (e.g. another chart version) patches it in its
+  own `<layer>/<cluster>/<component>/kustomization.yaml`.
 
 ## Components
 
@@ -55,7 +54,9 @@ prometheus.io/path: "/metrics"   # optional, defaults to /metrics
 The rule is one `VMPodScrape` named `annotations-discovery` in `monitoring`,
 following the VictoriaMetrics operator's documented
 [Auto-discovery for prometheus.io annotations](https://docs.victoriametrics.com/operator/integrations/prometheus/)
-example. It lives in `monitoring-configs` because it needs the operator's CRD. Pods
+example. It ships inside the HelmRelease through the chart's `extraObjects`
+value: Helm installs the chart's CRDs before its other objects, so it needs no
+separate Flux step (the chart creates VMAgent and VMSingle the same way). Pods
 without `prometheus.io/scrape: "true"` are not scraped by this rule. Each
 annotated pod must appear exactly once as a target.
 
@@ -72,48 +73,53 @@ expose no metrics endpoint; cAdvisor and kube-state-metrics cover them.
 ## Folder layout
 
 ```
+clusters/devops-cs/                 Flux wiring only
+  infrastructure.yaml               infrastructure → ./infrastructure/devops-cs
+  databases.yaml                    databases      → ./databases/devops-cs
+  apps.yaml                         apps           → ./apps/devops-cs (waits for databases)
 infrastructure/
-  controllers/                      empty placeholder (infra-controllers)
-  configs/                          empty placeholder (infra-configs)
-  monitoring/
-    controllers/
-      kustomization.yaml            lists victoria-metrics
-      victoria-metrics/             namespace, HelmRepository, HelmRelease
-    configs/
-      kustomization.yaml            lists victoria-metrics
-      victoria-metrics/             VMPodScrape
-clusters/devops-cs/
-  infrastructure.yaml               infra-controllers, infra-configs (original paths)
-  monitoring.yaml                   monitoring-controllers, monitoring-configs
+  base/monitoring/                  namespace, HelmRepository, HelmRelease (incl. VMPodScrape)
+  devops-cs/
+    kustomization.yaml              lists monitoring
+    monitoring/kustomization.yaml   → ../../base/monitoring
+databases/  base/postgres/  devops-cs/postgres/
+apps/       base/<app>/     devops-cs/<app>/
 ```
 
-- Remove the unused `infrastructure/kustomization.yaml`.
-- `clusters/devops-cs/monitoring.yaml` (new): `monitoring-controllers` →
-  `./infrastructure/monitoring/controllers`; `monitoring-configs` →
-  `./infrastructure/monitoring/configs`.
+- Remove `infrastructure/controllers/`, `infrastructure/configs/` and the unused
+  `infrastructure/kustomization.yaml`, and the `infra-controllers` /
+  `infra-configs` Flux Kustomizations. `databases` and `apps` drop their
+  `dependsOn: infra-controllers`.
+- A new infrastructure component (cert-manager, Loki) is a new
+  `infrastructure/base/<component>/`, a new
+  `infrastructure/<cluster>/<component>/`, and one line in
+  `infrastructure/<cluster>/kustomization.yaml`. `clusters/` does not change.
 
 ## Flux ordering
 
-`monitoring-controllers` installs the chart and its CRDs; `monitoring-configs`
-(`dependsOn: monitoring-controllers`) applies the `VMPodScrape`. Nothing depends
-on the monitoring Kustomizations, so a failing monitoring install never blocks
-`databases` or `apps`.
+`infrastructure` applies the monitoring HelmRelease; `databases` then `apps`
+(`dependsOn: databases`). Nothing depends on `infrastructure`, so a failing
+monitoring install never blocks `databases` or `apps`. When an app-critical
+component such as cert-manager is added, decide then whether apps wait for all
+of `infrastructure` or that component gets its own Flux Kustomization.
 
 ## Per-cluster differences
 
-Add a patch to that cluster's `clusters/<cluster>/monitoring.yaml`, e.g. a
-different chart version:
+Add a patch to that cluster's overlay, e.g.
+`infrastructure/<cluster>/monitoring/kustomization.yaml` for a different chart
+version:
 
 ```yaml
-spec:
-  patches:
-    - target:
-        kind: HelmRelease
-        name: victoria-metrics-k8s-stack
-      patch: |
-        - op: replace
-          path: /spec/chart/spec/version
-          value: "0.92.1"
+resources:
+  - ../../base/monitoring
+patches:
+  - target:
+      kind: HelmRelease
+      name: victoria-metrics-k8s-stack
+    patch: |
+      - op: replace
+        path: /spec/chart/spec/version
+        value: "0.92.1"
 ```
 
 ## Access

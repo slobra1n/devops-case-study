@@ -1,0 +1,79 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: victoria-metrics-k8s-stack
+  namespace: monitoring
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: victoria-metrics-k8s-stack
+      version: "0.93.0"
+      sourceRef:
+        kind: HelmRepository
+        name: victoriametrics
+  upgrade:
+    crds: CreateReplace
+  values:
+    grafana:
+      enabled: false
+    alertmanager:
+      enabled: false
+    vmalert:
+      enabled: false
+    defaultRules:
+      enabled: false
+    defaultDashboards:
+      enabled: false
+    prometheus-node-exporter:
+      enabled: false
+    kubeApiServer:
+      enabled: false
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeEtcd:
+      enabled: false
+    vmsingle:
+      spec:
+        retentionPeriod: "14d"
+        storage:
+          resources:
+            requests:
+              storage: 5Gi
+    # Objects that use the chart's CRDs. Helm installs the CRDs first, so they
+    # can ship in the same release (the chart creates VMAgent/VMSingle the same way).
+    extraObjects:
+      # Scrape every pod that opts in with prometheus.io/* annotations. Based on
+      # the VictoriaMetrics operator docs, "Auto-discovery for prometheus.io
+      # annotations": https://docs.victoriametrics.com/operator/integrations/prometheus/
+      - apiVersion: operator.victoriametrics.com/v1beta1
+        kind: VMPodScrape
+        metadata:
+          name: annotations-discovery
+          namespace: monitoring
+        spec:
+          # Every pod in every namespace; the relabel rules keep only annotated ones.
+          namespaceSelector:
+            any: true
+          selector: {}
+          podMetricsEndpoints:
+            - relabelConfigs:
+                - action: drop
+                  source_labels: [__meta_kubernetes_pod_container_init]
+                  regex: "true"
+                - action: keep_if_equal
+                  source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_container_port_number]
+                - action: keep
+                  source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                  regex: "true"
+                # regex (.+) keeps the default /metrics when the path annotation
+                # is absent (the Flux controllers don't set it).
+                - action: replace
+                  source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                  target_label: __metrics_path__
+                  regex: (.+)
+                - action: replace
+                  source_labels: [__meta_kubernetes_pod_node_name]
+                  target_label: node

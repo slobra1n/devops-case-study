@@ -4,8 +4,6 @@ metadata:
   name: databases
   namespace: flux-system
 spec:
-  dependsOn:
-    - name: infra-controllers
   interval: 10m
   retryInterval: 1m
   sourceRef:

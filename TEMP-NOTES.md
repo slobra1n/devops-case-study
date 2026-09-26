@@ -39,34 +39,43 @@ so there was no way to order them.
   `databases/`. `clusters/` does not change, and the apps wait for every
   database through the single `databases` layer.
 
-## Change 4: monitoring as its own layer under `infrastructure/`
+## Change 4: one folder shape for every layer
 
 - My mental model: multi-cluster support and no repetition. Every cluster runs
   the same things; a cluster that needs something different (e.g. another
-  chart version) should be able to change just that, easily.
-- So infrastructure is defined once and shared by all clusters, with no
-  per-cluster overlay. Differences go into that cluster's Flux Kustomization
-  as `patches:` (checked: patching the HelmRelease chart version works with
-  `flux build`). This is how Flux's own example handles infrastructure.
-- Monitoring (VictoriaMetrics) lives in `infrastructure/monitoring/`, grouped
-  with the rest of the infrastructure, with its own Flux Kustomizations in
-  `clusters/devops-cs/monitoring.yaml`. Nothing depends on them, so a broken
-  monitoring install never blocks postgres or the apps (this was the finding
-  of the final review when VictoriaMetrics sat inside `infra-controllers`).
-- `controllers/` vs `configs/`: controllers install software and its CRDs
-  (the Helm chart); configs are objects of those new kinds (the
-  `VMPodScrape`). They are separate Flux steps because a `VMPodScrape` can
-  only be applied once the chart has installed its CRD.
-- `apps/` and `databases/` keep base + overlay, because each cluster has its
-  own credentials Secret.
+  chart version) should be able to change just that, easily. Above all it has
+  to be neat, tidy and simple to find.
+- So every layer (`infrastructure/`, `databases/`, `apps/`) follows one rule:
+  1. `<layer>/base/<component>/`: the definition, written once.
+  2. `<layer>/<cluster>/<component>/`: what this cluster runs from base, plus
+     its differences (version, Secret, size).
+  3. `clusters/<cluster>/<layer>.yaml`: Flux wiring only (which folder, what
+     to wait for). One Flux Kustomization per layer.
+- Monitoring is part of infrastructure: `infrastructure/base/monitoring/`.
+  cert-manager or Loki would be `infrastructure/base/cert-manager/`,
+  `infrastructure/base/loki/`, plus their `infrastructure/devops-cs/<component>/`
+  and one line in `infrastructure/devops-cs/kustomization.yaml`.
+- No `controllers/` / `configs/` split. That split exists because objects like
+  the `VMPodScrape` need a CRD that the chart installs first. Here the
+  `VMPodScrape` ships inside the chart (`extraObjects`), and Helm installs a
+  chart's CRDs before everything else, so one folder is enough.
+- Nothing waits for `infrastructure`, so a broken monitoring install never
+  blocks postgres or the apps (the final review's finding when monitoring sat
+  inside `infra-controllers`, which apps and databases waited for). When
+  something apps need (e.g. cert-manager) is added, decide then: apps wait for
+  all of `infrastructure`, or that component gets its own Flux Kustomization.
+- Checked: the real chart 0.93.0 renders the `VMPodScrape` from our values, and
+  a version patch in a cluster overlay changes only that cluster.
 
 ## Where things live
 
-| Folder | Contains | Answers |
-|---|---|---|
-| `clusters/<cluster>/` | Flux wiring only: Flux Kustomizations (path, `dependsOn`, interval, per-cluster patches). `flux-system/` is Flux itself | What does this cluster run, in what order? |
-| `infrastructure/`, `databases/base/`, `apps/base/` | The actual definitions: Deployments, Services, HelmRelease, VMPodScrape | What is each thing? |
-| `databases/<cluster>/`, `apps/<cluster>/` | Which bases this cluster uses, plus its differences (credentials Secret) | What is special about this cluster? |
+| I want to… | Go to |
+|---|---|
+| See how a component is defined | `<layer>/base/<component>/` |
+| Change something for one cluster (version, Secret, size) | `<layer>/<cluster>/<component>/` |
+| See what a cluster runs and in what order | `clusters/<cluster>/` (`flux-system/` is Flux itself) |
+| Add an infrastructure component (cert-manager, Loki) | `infrastructure/base/<component>/` + `infrastructure/<cluster>/<component>/` + one line in `infrastructure/<cluster>/kustomization.yaml` |
+| Add a cluster | `clusters/<cluster>/` + a `<layer>/<cluster>/` overlay per layer |
 
 ## Known issue: backend 500s after a restart
 
