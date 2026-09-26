@@ -6,7 +6,7 @@
 
 **Architecture:** Flux installs the trimmed `victoria-metrics-k8s-stack` Helm chart through the `infra-controllers` Kustomization, from a new base + overlay layout under `infrastructure/`. VMAgent gets the standard `kubernetes-pods` job inline; ml-api and backend-api opt in with `prometheus.io/*` pod annotations.
 
-**Tech Stack:** Flux v2.9.5 (`helm.toolkit.fluxcd.io/v2`, `source.toolkit.fluxcd.io/v1`), Kustomize via `kubectl kustomize`, `victoria-metrics-k8s-stack` 0.93.0, k3d/k3s, `jq`.
+**Tech Stack:** Flux v2.9.5 (`helm.toolkit.fluxcd.io/v2`, `source.toolkit.fluxcd.io/v1`), Kustomize via `kubectl kustomize`, `victoria-metrics-k8s-stack` 0.93.0, k3d/k3s.
 
 **Spec:** [VictoriaMetrics metrics collection](../specs/2026-09-26-victoriametrics-metrics-collection-design.md)
 
@@ -20,50 +20,17 @@
 - Layout: `infrastructure/base/...` + `infrastructure/devops-cs/...`, one folder per component, same as `apps/` and `databases/`.
 - `databases` and `apps` do not depend on monitoring. No ingress.
 - No application code changes. Only pod-template annotations in `apps/base`.
-- Get the user's go-ahead before every `git push`: a push changes the running cluster.
+- No `git push` in this plan. The user pushes; Task 3 runs after that.
 
 ## Review Focus
 
-1. An undeclared port, a multi-port pod or an annotated chart pod shows up as a missing or extra target. Task 4 checks exactly 8 pods, each scraped once.
-2. CRDs missing on install or stale after upgrades. The chart installs them (Flux default `Create`) and the HelmRelease sets `upgrade.crds: CreateReplace`; Task 4 checks the HelmRelease is Ready.
-3. Metrics lost on VMSingle restart. Task 4 checks the PVC is Bound and data from before a pod deletion is still queryable.
+1. An undeclared port, a multi-port pod or an annotated chart pod shows up as a missing or extra target. Task 3 checks exactly 8 pods, each scraped once.
+2. CRDs missing on install or stale after upgrades. The chart installs them (Flux default `Create`) and the HelmRelease sets `upgrade.crds: CreateReplace`; Task 3 checks the HelmRelease is Ready.
+3. Metrics lost on VMSingle restart. Task 3 checks the PVC is Bound and data from before a pod deletion is still visible.
 
 ---
 
-## Task 1: Deploy the pending refactor
-
-The earlier refactor commits (`apps/base`, `databases/`) are local only; `origin/main` has two bootstrap commits (`clusters/devops-cs/flux-system/`) that are not local. The cluster must run the new layout before monitoring is added, so any breakage is attributable.
-
-**Files:** none changed.
-
-- [ ] **Step 1: Rebase onto the bootstrap commits**
-
-Run: `git pull --rebase`
-Expected: success, no conflicts (the remote commits only add `clusters/devops-cs/flux-system/`).
-
-- [ ] **Step 2: Ask the user to approve the push, then push**
-
-Expected effect on the cluster: `databases` takes over postgres, postgres and backend-api roll out once (their pod templates changed), postgres starts with an empty database, and backend-api starts after it because `apps` waits for `databases`.
-
-```sh
-git push
-flux reconcile kustomization flux-system --with-source
-flux get kustomizations
-```
-
-Expected: `flux-system`, `infra-controllers`, `infra-configs`, `databases`, `apps` all `True`, revision = `git rev-parse --short HEAD`.
-
-- [ ] **Step 3: Check the backend**
-
-```sh
-kubectl logs -n backend-api -l app=backend-api --since=2m --prefix | grep 'POST /process' | tail -5
-```
-
-Expected: `200 OK`. If `500`, apply the known workaround from `TEMP-NOTES.md`: `kubectl -n backend-api rollout restart deployment/backend-api`, wait for rollout, re-run the check.
-
----
-
-## Task 2: Infrastructure base + overlay with the VictoriaMetrics HelmRelease
+## Task 1: Infrastructure base + overlay with the VictoriaMetrics HelmRelease
 
 **Files:**
 - Delete: `infrastructure/kustomization.yaml`, `infrastructure/controllers/kustomization.yaml`, `infrastructure/configs/kustomization.yaml`
@@ -77,8 +44,7 @@ Expected: `200 OK`. If `500`, apply the known workaround from `TEMP-NOTES.md`: `
 - Modify: `clusters/devops-cs/infrastructure.yaml` (both `path:` lines)
 
 **Interfaces:**
-- Consumes: Task 1 (cluster on the new layout).
-- Produces: HelmRelease `monitoring/victoria-metrics-k8s-stack`; scrape job name `kubernetes-pods`; operator-created Services labelled `app.kubernetes.io/name=vmsingle` / `vmagent`.
+- Produces: HelmRelease `monitoring/victoria-metrics-k8s-stack`; scrape job name `kubernetes-pods`; operator-created VMSingle pods labelled `app.kubernetes.io/name=vmsingle`.
 
 - [ ] **Step 1: Remove the old empty layout**
 
@@ -119,7 +85,7 @@ metadata:
   name: victoria-metrics-k8s-stack
   namespace: monitoring
 spec:
-  interval: 30m
+  interval: 10m
   chart:
     spec:
       chart: victoria-metrics-k8s-stack
@@ -263,14 +229,14 @@ git commit -m "feat: add VictoriaMetrics stack under infrastructure base/overlay
 
 ---
 
-## Task 3: Annotate ml-api and backend-api
+## Task 2: Annotate ml-api and backend-api
 
 **Files:**
 - Modify: `apps/base/ml-api/deployment.yaml` (pod template `metadata`)
 - Modify: `apps/base/backend-api/deployment.yaml` (pod template `metadata`)
 
 **Interfaces:**
-- Consumes: scrape job `kubernetes-pods` from Task 2 (reads `prometheus.io/scrape`, `prometheus.io/port`, `prometheus.io/path`).
+- Consumes: scrape job `kubernetes-pods` from Task 1 (reads `prometheus.io/scrape`, `prometheus.io/port`, `prometheus.io/path`).
 - Produces: pods that declare `containerPort: 8000` and carry the three annotations.
 
 - [ ] **Step 1: Add the annotations**
@@ -302,74 +268,71 @@ git commit -m "feat: opt ml-api and backend-api into metrics scraping"
 
 ---
 
-## Task 4: Deploy and verify the acceptance criteria
+## Task 3: Verify after the user pushes
 
-The annotation change rolls ml-api and backend-api once. Postgres is already running, so backend-api's table creation succeeds.
+This plan does not push. The user runs `git pull --rebase` (to pick up the two Flux bootstrap commits on `origin/main`) and `git push`. That push deploys the pending `apps/base` + `databases/` refactor together with Tasks 1 and 2: postgres starts with an empty database, and backend-api starts after it because `apps` waits for `databases`.
 
 **Files:** none changed.
 
-- [ ] **Step 1: Ask the user to approve the push, then push and reconcile**
+- [ ] **Step 1: Flux is Ready (criterion 1)**
 
 ```sh
-git push
 flux reconcile kustomization flux-system --with-source
 flux get kustomizations
 flux get helmreleases -A
 kubectl -n monitoring get pods,pvc
 ```
 
-Expected (criterion 1): every Kustomization and `monitoring/victoria-metrics-k8s-stack` `True`; pods Running; PVC `Bound`, `5Gi`. The first install can take a few minutes while images pull.
+Expected: every Kustomization and `monitoring/victoria-metrics-k8s-stack` `True`; pods Running; PVC `Bound`, `5Gi`. The first install can take a few minutes while images pull.
 
-- [ ] **Step 2: Set up the query helper** (wait ~1 minute after pods are Ready so VMAgent has scraped)
+- [ ] **Step 2: Backend still serves 200s**
 
 ```sh
-VMSINGLE=$(kubectl -n monitoring get svc -l app.kubernetes.io/name=vmsingle -o jsonpath='{.items[0].metadata.name}')
-q() { kubectl get --raw "/api/v1/namespaces/monitoring/services/${VMSINGLE}:8428/proxy/api/v1/query?query=$(jq -rn --arg q "$1" '$q|@uri')${2:+&time=$2}" | jq -c '.data.result[] | [.metric, .value[1]]'; }
+kubectl logs -n backend-api -l app=backend-api --since=2m --prefix | grep 'POST /process' | tail -5
 ```
 
-- [ ] **Step 3: Targets (criterion 2)**
+Expected: `200 OK`. If `500`, apply the known workaround from `TEMP-NOTES.md`: `kubectl -n backend-api rollout restart deployment/backend-api`, wait for the rollout, re-run the check.
+
+- [ ] **Step 3: Open the VictoriaMetrics web pages**
 
 ```sh
-q 'count by (job) (up)'
-q 'up == 0'
-q 'count by (namespace, pod) (up{job="kubernetes-pods"})'
+kubectl -n monitoring get svc
+kubectl -n monitoring port-forward svc/vmagent-victoria-metrics-k8s-stack 8429 &
+kubectl -n monitoring port-forward svc/vmsingle-victoria-metrics-k8s-stack 8428 &
 ```
 
-Expected:
-- jobs include `kubernetes-pods`, `kubelet` (cAdvisor/probes/resource), `kube-state-metrics`, CoreDNS, and VictoriaMetrics components (vmsingle, vmagent, operator);
-- `up == 0` returns nothing;
-- `kubernetes-pods` lists exactly 8 pods (2 `ml-api`, 2 `backend-api`, 4 `flux-system` controllers), each with value `1`. Any extra or missing pod: see Review Focus 1.
+If the service names differ, use the ones `get svc` lists. Give VMAgent a minute to scrape.
 
-- [ ] **Step 4: Queries return data (criterion 3)**
+- [ ] **Step 4: Targets (criterion 2)**
+
+Open http://localhost:8429/targets.
+
+Expected: every target `up`. The `kubernetes-pods` group has exactly 8 targets: 2 `ml-api`, 2 `backend-api`, 4 `flux-system` controllers. Groups for kubelet, kube-state-metrics, CoreDNS and the VictoriaMetrics components are also present. Any extra or missing pod: see Review Focus 1.
+
+- [ ] **Step 5: Data (criterion 3)**
+
+Open http://localhost:8428/vmui and run each query:
+
+- `backend_api_requests_total`
+- `container_memory_working_set_bytes{namespace="postgres"}`
+- `kube_pod_container_status_restarts_total`
+
+Expected: each returns data.
+
+- [ ] **Step 6: Data survives a VMSingle restart (criterion 4)**
+
+In vmui, set the time range to "Last 1 hour" and graph `count(up)`. Then:
 
 ```sh
-q 'sum by (endpoint, status) (backend_api_requests_total)'
-q 'container_memory_working_set_bytes{namespace="postgres"}'
-q 'count(kube_pod_container_status_restarts_total)'
-```
-
-Expected: each returns at least one row.
-
-- [ ] **Step 5: Data survives a VMSingle restart (criterion 4)**
-
-```sh
-T=$(( $(date +%s) - 120 ))
-q 'count(up)' "$T"
 kubectl -n monitoring delete pod -l app.kubernetes.io/name=vmsingle
 kubectl -n monitoring wait --for=condition=Ready pod -l app.kubernetes.io/name=vmsingle --timeout=180s
-sleep 10
-q 'count(up)' "$T"
+kubectl -n monitoring port-forward svc/vmsingle-victoria-metrics-k8s-stack 8428 &
 ```
 
-Expected: both queries return the same non-zero count for time `T`.
+The old port-forward breaks when its pod is deleted, so the last line starts a new one. Reload vmui.
 
-- [ ] **Step 6: Record the result**
+Expected: the graph still shows data from before the deletion.
 
-Report the output of Steps 1–5 to the user, with the vmui access command from the spec:
+- [ ] **Step 7: Clean up and report**
 
-```sh
-kubectl -n monitoring port-forward "svc/${VMSINGLE}" 8428:8428
-# then open http://localhost:8428/vmui
-```
-
-No commit: this task changes no files.
+Stop the port-forwards (`kill %1 %2 %3`, or close the shell) and report the results of Steps 1–6 to the user. No commit: this task changes no files.
