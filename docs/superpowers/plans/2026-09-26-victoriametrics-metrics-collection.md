@@ -40,11 +40,7 @@
 - Create: `infrastructure/base/controllers/victoria-metrics/kustomization.yaml`
 - Create: `infrastructure/devops-cs/controllers/kustomization.yaml`
 - Create: `infrastructure/devops-cs/controllers/victoria-metrics/kustomization.yaml`
-- Create: `infrastructure/devops-cs/configs/kustomization.yaml`
-- Modify: `clusters/devops-cs/infrastructure.yaml` (both `path:` lines)
-
-**Interfaces:**
-- Produces: HelmRelease `monitoring/victoria-metrics-k8s-stack`; scrape job name `kubernetes-pods`; operator-created VMSingle pods labelled `app.kubernetes.io/name=vmsingle`.
+- Modify: `clusters/devops-cs/infrastructure.yaml` (`infra-controllers` path; remove `infra-configs`)
 
 - [ ] **Step 1: Remove the old empty layout**
 
@@ -192,19 +188,11 @@ resources:
   - ../../../base/controllers/victoria-metrics
 ```
 
-`infrastructure/devops-cs/configs/kustomization.yaml`:
-
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources: []
-```
-
 - [ ] **Step 4: Point Flux at the overlay**
 
-In `clusters/devops-cs/infrastructure.yaml` change:
+In `clusters/devops-cs/infrastructure.yaml`:
 - `infra-controllers`: `path: ./infrastructure/controllers` → `path: ./infrastructure/devops-cs/controllers`
-- `infra-configs`: `path: ./infrastructure/configs` → `path: ./infrastructure/devops-cs/configs`
+- Delete the `infra-configs` document (the `---` and everything after it). It applies nothing and nothing depends on it; add it back when the first config exists.
 
 - [ ] **Step 5: Verify the render**
 
@@ -234,10 +222,6 @@ git commit -m "feat: add VictoriaMetrics stack under infrastructure base/overlay
 **Files:**
 - Modify: `apps/base/ml-api/deployment.yaml` (pod template `metadata`)
 - Modify: `apps/base/backend-api/deployment.yaml` (pod template `metadata`)
-
-**Interfaces:**
-- Consumes: scrape job `kubernetes-pods` from Task 1 (reads `prometheus.io/scrape`, `prometheus.io/port`, `prometheus.io/path`).
-- Produces: pods that declare `containerPort: 8000` and carry the three annotations.
 
 - [ ] **Step 1: Add the annotations**
 
@@ -270,14 +254,13 @@ git commit -m "feat: opt ml-api and backend-api into metrics scraping"
 
 ## Task 3: Verify after the user pushes
 
-This plan does not push. The user runs `git pull --rebase` (to pick up the two Flux bootstrap commits on `origin/main`) and `git push`. That push deploys the pending `apps/base` + `databases/` refactor together with Tasks 1 and 2: postgres starts with an empty database, and backend-api starts after it because `apps` waits for `databases`.
+The user runs `git pull --rebase` (to pick up the two Flux bootstrap commits on `origin/main`) and `git push`. That push deploys the pending `apps/base` + `databases/` refactor together with Tasks 1 and 2: postgres starts with an empty database, and backend-api starts after it because `apps` waits for `databases`.
 
 **Files:** none changed.
 
 - [ ] **Step 1: Flux is Ready (criterion 1)**
 
 ```sh
-flux reconcile kustomization flux-system --with-source
 flux get kustomizations
 flux get helmreleases -A
 kubectl -n monitoring get pods,pvc

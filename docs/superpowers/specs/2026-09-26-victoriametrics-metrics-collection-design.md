@@ -70,15 +70,14 @@ infrastructure/
     controllers/
       kustomization.yaml            lists victoria-metrics
       victoria-metrics/             kustomization.yaml -> ../../../base/controllers/victoria-metrics
-    configs/
-      kustomization.yaml            empty (resources: [])
 ```
 
 - Remove the empty `infrastructure/controllers/`, `infrastructure/configs/` and
   the unused `infrastructure/kustomization.yaml`.
 - `clusters/devops-cs/infrastructure.yaml`: `infra-controllers` path becomes
-  `./infrastructure/devops-cs/controllers`, `infra-configs` path becomes
-  `./infrastructure/devops-cs/configs`.
+  `./infrastructure/devops-cs/controllers`. Remove the `infra-configs` Flux
+  Kustomization: it applies nothing and nothing depends on it. Add it back when
+  the first config exists.
 
 ## Flux ordering
 
