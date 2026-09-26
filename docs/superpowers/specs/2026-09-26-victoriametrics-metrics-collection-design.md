@@ -35,13 +35,14 @@ Namespace: `monitoring`.
 | VMSingle | on | Stores metrics |
 | kube-state-metrics | on | Restarts, readiness and replicas for every pod |
 | Flux object status (`gotk_resource_info`) | on | Ready/suspended per Kustomization, HelmRelease, GitRepository, HelmRepository; Flux's official kube-state-metrics custom resource config, on the existing kube-state-metrics |
-| kubelet / cAdvisor scrape | on | CPU and memory for every container |
+| kubelet cAdvisor, probes, resource scrapes | on | CPU and memory for every container, probe results |
+| kubelet `/metrics` scrape | off | On k3s it returns the same registry as the API server; collected once through the API server scrape |
 | CoreDNS scrape | on | Cluster DNS |
 | Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks ml-api `/health` and backend-api `/ready` through their Services, like a client; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
 | node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
 | Grafana, Alertmanager, vmalert, default rules, default dashboards | off | Out of scope |
-| controller-manager, scheduler, etcd scrapes | off | Embedded in the k3s process; targets would always fail |
-| API server scrape | on | API latency and errors; on k3s also includes scheduler, controller-manager and datastore (`etcd_*`, SQLite via kine) metrics. About 42k series, chart defaults, no drops |
+| controller-manager, scheduler, etcd scrapes | off | k3s runs them inside its one process and serves no separate endpoints (10257/10259 aren't listening). Their metrics (`scheduler_*`, controller `workqueue_*`, `etcd_*` via kine/SQLite) come through the API server scrape |
+| API server scrape | on | API latency and errors. On k3s it is the one scrape of the shared registry: apiserver, scheduler, controller-manager, kubelet (`kubelet_*`) and datastore metrics. About 42k series, chart defaults, no drops |
 
 ## Annotation rule
 
@@ -150,6 +151,8 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
      disk that holds the `local-path` PVCs; the node container's own `/` is
      overlay and excluded by the chart)
    - `apiserver_request_total`
+   - `scheduler_schedule_attempts_total` and `workqueue_adds_total{name="deployment"}`
+     (controller-manager), each from the `apiserver` job only
 4. After deleting the VMSingle pod, data from before the deletion is still
    queryable.
 

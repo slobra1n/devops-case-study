@@ -27,10 +27,19 @@ spec:
       enabled: false
     prometheus-node-exporter:
       enabled: true
-    # ponytail: ~42k series (mostly histogram buckets), about doubles ingestion;
-    # drop apiserver_/etcd_ *_bucket series if VMSingle's disk grows too fast.
+    # k3s runs apiserver, scheduler, controller-manager and kubelet in one
+    # process with one metrics registry. The controller-manager and scheduler
+    # serve no endpoint of their own, and the kubelet's /metrics returns the
+    # same data as the API server's. Collect it once, from the API server
+    # (no label drops); keep the kubelet's own cAdvisor/probes/resource endpoints.
+    # ponytail: ~42k series, mostly histogram buckets; drop apiserver_/etcd_
+    # *_bucket series if VMSingle's disk grows too fast.
     kubeApiServer:
       enabled: true
+    kubelet:
+      vmScrapes:
+        kubelet:
+          enabled: false
     kubeControllerManager:
       enabled: false
     kubeScheduler:
