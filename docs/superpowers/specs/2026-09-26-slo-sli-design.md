@@ -5,15 +5,15 @@
 Measure the user-facing SLIs of ml-api and backend-api the way the Google SRE
 workbook prescribes ([Implementing SLOs](https://sre.google/workbook/implementing-slos/),
 [Alerting on SLOs](https://sre.google/workbook/alerting-on-slos/)), with the
-recording windows its alerting needs. This step records SLIs; it sets no
-targets and creates no alert rules. What adding them takes is described under
-"When targets are chosen".
+recording windows and alert routing its alerting needs. This step records SLIs
+and routes alerts; it sets no targets and creates no alert rules. Choosing
+targets later means the steps under "When targets are chosen".
 
 ## Decisions
 
-- **Scope:** SLI recording rules, evaluated by vmalert. Dashboards come next.
-  SLO targets, burn-rate alerts, Alertmanager, the SLO document and the error
-  budget policy come later.
+- **Scope:** SLI recording rules evaluated by vmalert, and Alertmanager
+  routing. Dashboards come next. SLO targets, burn-rate alerts, notification
+  channels, the SLO document and the error budget policy come later.
 - **SLI style:** the ratio of bad events to valid events, as the workbook
   recommends ("What to Measure: Using SLIs").
 - **SLO window:** 4-week rolling window, the workbook's general-purpose choice
@@ -33,6 +33,8 @@ targets and creates no alert rules. What adding them takes is described under
   `objective: 99.9`, marked as a placeholder, and the alert name it will use
   later. Nothing uses either yet: the plugin chain generates SLI rules only.
   Latency thresholds are provisional.
+- **Receivers:** `page` and `ticket` without integrations; alerts are visible
+  in the Alertmanager UI.
 
 ## SLIs
 
@@ -158,24 +160,41 @@ When targets are chosen: set `objective` in each `slo.yaml`, and add
 `sloth.dev/core/metadata_rules/v1` and `sloth.dev/core/alert_rules/v1` to the
 plugin chain in the script. Every SLO then gets the workbook's page and ticket
 alerts (Sloth's `google-28d` windows: page 1 h/5 m and 6 h/30 m, ticket
-1 d/2 h and 3 d/6 h), labelled `sloth_severity=page|ticket`. The same change
-enables Alertmanager with `page` and `ticket` receivers and an inhibit rule, so
-a page silences the ticket of the same `sloth_id` (the workbook's suppression).
+1 d/2 h and 3 d/6 h), labelled `sloth_severity=page|ticket`, which the
+Alertmanager routes below already handle.
 
 SLOs are defined once in `base`; every cluster gets the same SLOs. Per-cluster
 SLO overrides are not built.
 
 ## Runtime
 
-vmalert comes from the existing `victoria-metrics-k8s-stack` chart, switched on
-in `infrastructure/base/monitoring/helmrelease.yaml`:
+Both components come from the existing `victoria-metrics-k8s-stack` chart,
+switched on in `infrastructure/base/monitoring/helmrelease.yaml`:
 
 - `vmalert.enabled: true`. It selects every `VMRule` in every namespace
   (`selectAllByDefault`), evaluates every 20 s and writes the recorded series
   into VMSingle: 4 SLOs × 8 windows = 32 recording rules, no alert rules.
-- `vmalert.spec.extraArgs.notifier.blackhole: "true"`. With Alertmanager off,
-  the chart refuses to render vmalert without a notifier. The blackhole
-  notifier discards alerts; there are none yet.
+- `alertmanager.enabled: true`. The chart points vmalert at it. Configuration:
+
+```yaml
+route:
+  receiver: ticket              # tickets, and anything unrouted still reaches a human
+  group_by: [alertname, sloth_id]
+  routes:
+    - matchers: ['sloth_severity="page"']
+      receiver: page
+receivers:
+  - name: page
+  - name: ticket
+inhibit_rules:                  # a page silences the ticket of the same SLO
+  - source_matchers: ['sloth_severity="page"']
+    target_matchers: ['sloth_severity="ticket"']
+    equal: [sloth_id]
+```
+
+The inhibit rule is the workbook's alert suppression: a fast burn also
+satisfies the slower conditions and would otherwise notify twice. A real
+channel is later one integration block in a receiver.
 
 **Retention and storage:** VMSingle `retentionPeriod` goes from `14d` to `30d`
 (4-week window plus 2 days margin). Measured on 2026-09-26 with the formula
@@ -197,18 +216,19 @@ deleted lazily, so usage can stay above that for a while.
 Watch `vm_data_size_bytes`; if it grows too fast, drop the API server and etcd
 histogram buckets first (the `ponytail:` note in the HelmRelease).
 
-This updates the metrics-collection spec: vmalert moves from off to on,
-retention from 14 days to 30 days, and the base PVC from 5Gi to the chart's
-20Gi (devops-cs stays at 5Gi).
+This updates the metrics-collection spec: vmalert and Alertmanager move from
+off to on, retention from 14 days to 30 days, and the base PVC from 5Gi to the
+chart's 20Gi (devops-cs stays at 5Gi).
 
-**Access:** no ingress. vmalert UI through `kubectl port-forward`.
+**Access:** no ingress. vmalert and Alertmanager UIs through
+`kubectl port-forward`.
 
 ## Acceptance criteria
 
 1. `flux get kustomizations` and `flux get helmreleases -A` show all Ready.
-   `VMRule` `backend-api-slo` and `ml-api-slo` and `VMProbe` `predict` report
-   operational. vmalert reports no rule evaluation errors. The target
-   `probe/ml-api/predict` is up.
+   `VMRule` `backend-api-slo` and `ml-api-slo`, `VMProbe` `predict` and the
+   `VMAlertmanager` report operational. vmalert reports no rule evaluation
+   errors. The target `probe/ml-api/predict` is up.
 2. `slo:sli_error:ratio_rate5m` has exactly one series per SLO (4), and
    `slo:sli_error:ratio_rate4w` exists for all 4. While the apps are healthy,
    all values are about 0.
@@ -225,6 +245,9 @@ retention from 14 days to 30 days, and the base PVC from 5Gi to the chart's
    regenerating, and passes again after regenerating.
 5. VMSingle on devops-cs runs with `retentionPeriod: 30d` and still requests
    `5Gi`.
+6. Synthetic alerts sent to Alertmanager: a `sloth_severity="page"` alert
+   goes to `page` and a ticket to `ticket`; a ticket with the same `sloth_id`
+   as a firing page is inhibited, a ticket with another `sloth_id` is not.
 
 ## Known limits
 
@@ -245,9 +268,10 @@ retention from 14 days to 30 days, and the base PVC from 5Gi to the chart's
   becomes meaningful 28 days after deployment.
 - On devops-cs, disk use (about 15 GB estimated) exceeds the nominal 5Gi
   request; `local-path` doesn't enforce it.
+- No notification leaves the cluster.
 - The drift check only runs when someone runs it; there is no CI.
 
 ## Out of scope
 
-SLO targets, burn-rate alerts, Alertmanager and notification channels,
-dashboards, the SLO document and error budget policy, CI.
+SLO targets, burn-rate alerts, notification channels, dashboards, the SLO
+document and error budget policy, CI.
