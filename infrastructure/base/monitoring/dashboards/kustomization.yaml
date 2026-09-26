@@ -11,6 +11,13 @@ generatorOptions:
   labels:
     grafana_dashboard: "1"
 configMapGenerator:
+  # Ours.
+  - name: dashboard-apps
+    files: [overview/apps.json]
+    options: {annotations: {grafana_folder: Overview}}
+  - name: dashboard-platform
+    files: [overview/platform.json]
+    options: {annotations: {grafana_folder: Overview}}
   # Sloth, edited for provisioning and the 28-day period (see the spec):
   # https://grafana.com/grafana/dashboards/14643 revision 2
   - name: dashboard-sloth-overview
