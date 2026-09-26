@@ -39,6 +39,35 @@ so there was no way to order them.
   `databases/`. `clusters/` does not change, and the apps wait for every
   database through the single `databases` layer.
 
+## Change 4: monitoring as its own layer under `infrastructure/`
+
+- My mental model: multi-cluster support and no repetition. Every cluster runs
+  the same things; a cluster that needs something different (e.g. another
+  chart version) should be able to change just that, easily.
+- So infrastructure is defined once and shared by all clusters, with no
+  per-cluster overlay. Differences go into that cluster's Flux Kustomization
+  as `patches:` (checked: patching the HelmRelease chart version works with
+  `flux build`). This is how Flux's own example handles infrastructure.
+- Monitoring (VictoriaMetrics) lives in `infrastructure/monitoring/`, grouped
+  with the rest of the infrastructure, with its own Flux Kustomizations in
+  `clusters/devops-cs/monitoring.yaml`. Nothing depends on them, so a broken
+  monitoring install never blocks postgres or the apps (this was the finding
+  of the final review when VictoriaMetrics sat inside `infra-controllers`).
+- `controllers/` vs `configs/`: controllers install software and its CRDs
+  (the Helm chart); configs are objects of those new kinds (the
+  `VMPodScrape`). They are separate Flux steps because a `VMPodScrape` can
+  only be applied once the chart has installed its CRD.
+- `apps/` and `databases/` keep base + overlay, because each cluster has its
+  own credentials Secret.
+
+## Where things live
+
+| Folder | Contains | Answers |
+|---|---|---|
+| `clusters/<cluster>/` | Flux wiring only: Flux Kustomizations (path, `dependsOn`, interval, per-cluster patches). `flux-system/` is Flux itself | What does this cluster run, in what order? |
+| `infrastructure/`, `databases/base/`, `apps/base/` | The actual definitions: Deployments, Services, HelmRelease, VMPodScrape | What is each thing? |
+| `databases/<cluster>/`, `apps/<cluster>/` | Which bases this cluster uses, plus its differences (credentials Secret) | What is special about this cluster? |
+
 ## Known issue: backend 500s after a restart
 
 - Symptom: `POST /process` returns 500 with `relation "documents" does not

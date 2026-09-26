@@ -15,10 +15,15 @@ scrape rule. This step collects and stores metrics only.
   every pod, so VictoriaMetrics needs no per-app configuration.
 - **Storage:** VMSingle on a 5Gi PVC (`local-path` StorageClass), 14 days
   retention. Metrics must survive pod and cluster restarts.
-- **Layout:** `infrastructure/` gets the same base + overlay layout as `apps/`
-  and `databases/`, because more environments are expected. It keeps Flux's
-  `controllers` / `configs` split: controllers install tools and their CRDs,
-  configs hold objects that use those CRDs.
+- **Layout:** monitoring is its own layer under `infrastructure/`
+  (`infrastructure/monitoring/`), with its own Flux Kustomizations, as in
+  Flux's [monitoring example](https://github.com/fluxcd/flux2-monitoring-example).
+  It keeps Flux's `controllers` / `configs` split: controllers install tools and
+  their CRDs, configs hold objects that use those CRDs.
+- **Multi-cluster, no repetition:** infrastructure is defined once and shared by
+  all clusters, with no per-cluster overlay. A cluster that needs something
+  different (e.g. another chart version) patches it in its own
+  `clusters/<cluster>/monitoring.yaml`.
 
 ## Components
 
@@ -50,7 +55,7 @@ prometheus.io/path: "/metrics"   # optional, defaults to /metrics
 The rule is one `VMPodScrape` named `annotations-discovery` in `monitoring`,
 following the VictoriaMetrics operator's documented
 [Auto-discovery for prometheus.io annotations](https://docs.victoriametrics.com/operator/integrations/prometheus/)
-example. It lives in `infra-configs` because it needs the operator's CRD. Pods
+example. It lives in `monitoring-configs` because it needs the operator's CRD. Pods
 without `prometheus.io/scrape: "true"` are not scraped by this rule. Each
 annotated pod must appear exactly once as a target.
 
@@ -68,30 +73,48 @@ expose no metrics endpoint; cAdvisor and kube-state-metrics cover them.
 
 ```
 infrastructure/
-  base/
-    controllers/victoria-metrics/   namespace, HelmRepository, HelmRelease
-    configs/victoria-metrics/       VMPodScrape
-  devops-cs/
+  controllers/                      empty placeholder (infra-controllers)
+  configs/                          empty placeholder (infra-configs)
+  monitoring/
     controllers/
       kustomization.yaml            lists victoria-metrics
-      victoria-metrics/             kustomization.yaml -> ../../../base/controllers/victoria-metrics
+      victoria-metrics/             namespace, HelmRepository, HelmRelease
     configs/
       kustomization.yaml            lists victoria-metrics
-      victoria-metrics/             kustomization.yaml -> ../../../base/configs/victoria-metrics
+      victoria-metrics/             VMPodScrape
+clusters/devops-cs/
+  infrastructure.yaml               infra-controllers, infra-configs (original paths)
+  monitoring.yaml                   monitoring-controllers, monitoring-configs
 ```
 
-- Remove the empty `infrastructure/controllers/`, `infrastructure/configs/` and
-  the unused `infrastructure/kustomization.yaml`.
-- `clusters/devops-cs/infrastructure.yaml`: `infra-controllers` path becomes
-  `./infrastructure/devops-cs/controllers`, `infra-configs` path becomes
-  `./infrastructure/devops-cs/configs`.
+- Remove the unused `infrastructure/kustomization.yaml`.
+- `clusters/devops-cs/monitoring.yaml` (new): `monitoring-controllers` →
+  `./infrastructure/monitoring/controllers`; `monitoring-configs` →
+  `./infrastructure/monitoring/configs`.
 
 ## Flux ordering
 
-Unchanged chain: `infra-controllers` installs the chart and its CRDs;
-`infra-configs` (`dependsOn: infra-controllers`) applies the `VMPodScrape`.
-`databases` and `apps` don't depend on monitoring, because annotations need no
-CRD.
+`monitoring-controllers` installs the chart and its CRDs; `monitoring-configs`
+(`dependsOn: monitoring-controllers`) applies the `VMPodScrape`. Nothing depends
+on the monitoring Kustomizations, so a failing monitoring install never blocks
+`databases` or `apps`.
+
+## Per-cluster differences
+
+Add a patch to that cluster's `clusters/<cluster>/monitoring.yaml`, e.g. a
+different chart version:
+
+```yaml
+spec:
+  patches:
+    - target:
+        kind: HelmRelease
+        name: victoria-metrics-k8s-stack
+      patch: |
+        - op: replace
+          path: /spec/chart/spec/version
+          value: "0.92.1"
+```
 
 ## Access
 
