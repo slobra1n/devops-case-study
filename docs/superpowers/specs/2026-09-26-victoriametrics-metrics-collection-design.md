@@ -34,6 +34,7 @@ Namespace: `monitoring`.
 | VMAgent | on | Scrapes all targets |
 | VMSingle | on | Stores metrics |
 | kube-state-metrics | on | Restarts, readiness and replicas for every pod |
+| Flux object status (`gotk_resource_info`) | on | Ready/suspended per Kustomization, HelmRelease, GitRepository, HelmRepository; Flux's official kube-state-metrics custom resource config, on the existing kube-state-metrics |
 | kubelet / cAdvisor scrape | on | CPU and memory for every container |
 | CoreDNS scrape | on | Cluster DNS |
 | node-exporter | off | Node (Docker VM) metrics not needed; cAdvisor covers containers |
@@ -136,6 +137,7 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
    - `backend_api_requests_total`
    - `container_memory_working_set_bytes{namespace="postgres"}`
    - `kube_pod_container_status_restarts_total`
+   - `gotk_resource_info` (one series per Flux object, with its `ready` state)
 4. After deleting the VMSingle pod, data from before the deletion is still
    queryable.
 

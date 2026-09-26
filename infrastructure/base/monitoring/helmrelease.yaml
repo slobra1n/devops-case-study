@@ -35,6 +35,86 @@ spec:
       enabled: false
     kubeEtcd:
       enabled: false
+    # Ready/suspended state of Flux objects as gotk_resource_info, taken from
+    # Flux's official example (only the kinds this repo uses; add others when used):
+    # https://github.com/fluxcd/flux2-monitoring-example/blob/main/monitoring/controllers/kube-prometheus-stack/kube-state-metrics-config.yaml
+    kube-state-metrics:
+      rbac:
+        extraRules:
+          - apiGroups: [source.toolkit.fluxcd.io, kustomize.toolkit.fluxcd.io, helm.toolkit.fluxcd.io]
+            resources: [gitrepositories, helmrepositories, kustomizations, helmreleases]
+            verbs: [list, watch]
+      customResourceState:
+        enabled: true
+        config:
+          spec:
+            resources:
+              - groupVersionKind: {group: kustomize.toolkit.fluxcd.io, version: v1, kind: Kustomization}
+                metricNamePrefix: gotk
+                metrics:
+                  - name: resource_info
+                    help: The current state of a Flux Kustomization resource.
+                    each:
+                      type: Info
+                      info:
+                        labelsFromPath:
+                          name: [metadata, name]
+                labelsFromPath:
+                  exported_namespace: [metadata, namespace]
+                  ready: [status, conditions, "[type=Ready]", status]
+                  suspended: [spec, suspend]
+                  revision: [status, lastAppliedRevision]
+                  source_name: [spec, sourceRef, name]
+              - groupVersionKind: {group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease}
+                metricNamePrefix: gotk
+                metrics:
+                  - name: resource_info
+                    help: The current state of a Flux HelmRelease resource.
+                    each:
+                      type: Info
+                      info:
+                        labelsFromPath:
+                          name: [metadata, name]
+                labelsFromPath:
+                  exported_namespace: [metadata, namespace]
+                  ready: [status, conditions, "[type=Ready]", status]
+                  suspended: [spec, suspend]
+                  revision: [status, history, "0", chartVersion]
+                  chart_name: [status, history, "0", chartName]
+                  chart_app_version: [status, history, "0", appVersion]
+                  chart_source_name: [spec, chart, spec, sourceRef, name]
+              - groupVersionKind: {group: source.toolkit.fluxcd.io, version: v1, kind: GitRepository}
+                metricNamePrefix: gotk
+                metrics:
+                  - name: resource_info
+                    help: The current state of a Flux GitRepository resource.
+                    each:
+                      type: Info
+                      info:
+                        labelsFromPath:
+                          name: [metadata, name]
+                labelsFromPath:
+                  exported_namespace: [metadata, namespace]
+                  ready: [status, conditions, "[type=Ready]", status]
+                  suspended: [spec, suspend]
+                  revision: [status, artifact, revision]
+                  url: [spec, url]
+              - groupVersionKind: {group: source.toolkit.fluxcd.io, version: v1, kind: HelmRepository}
+                metricNamePrefix: gotk
+                metrics:
+                  - name: resource_info
+                    help: The current state of a Flux HelmRepository resource.
+                    each:
+                      type: Info
+                      info:
+                        labelsFromPath:
+                          name: [metadata, name]
+                labelsFromPath:
+                  exported_namespace: [metadata, namespace]
+                  ready: [status, conditions, "[type=Ready]", status]
+                  suspended: [spec, suspend]
+                  revision: [status, artifact, revision]
+                  url: [spec, url]
     vmsingle:
       spec:
         retentionPeriod: "14d"
