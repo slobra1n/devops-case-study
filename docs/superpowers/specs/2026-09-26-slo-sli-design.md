@@ -5,9 +5,9 @@
 Measure the user-facing SLIs of ml-api and backend-api the way the Google SRE
 workbook prescribes ([Implementing SLOs](https://sre.google/workbook/implementing-slos/),
 [Alerting on SLOs](https://sre.google/workbook/alerting-on-slos/)), with the
-recording windows its alerting needs. Choosing targets later then only means
-filling in numbers. This step records SLIs; it sets no targets and creates no
-alert rules.
+recording windows its alerting needs. This step records SLIs; it sets no
+targets and creates no alert rules. What adding them takes is described under
+"When targets are chosen".
 
 ## Decisions
 
@@ -28,9 +28,11 @@ alert rules.
   (`scripts/slo-generate.sh`: Sloth version, window, validator, plugin chain;
   the blackbox probe module). Each app only defines its SLIs in its own
   `slo.yaml`.
-- **Targets later:** Sloth requires an `objective` field, so every SLO carries
-  `objective: 99.9` marked as a placeholder. Nothing uses it: the plugin chain
-  generates SLI rules only. Latency thresholds are provisional.
+- **Targets later:** Sloth requires an `objective` and an `alerting.name` on
+  every SLO, even when it generates no alerts. Each SLO carries
+  `objective: 99.9`, marked as a placeholder, and the alert name it will use
+  later. Nothing uses either yet: the plugin chain generates SLI rules only.
+  Latency thresholds are provisional.
 
 ## SLIs
 
@@ -130,10 +132,12 @@ apps/base/ml-api/
 `scripts/slo-generate.sh`:
 
 - Finds every `apps/base/*/slo.yaml` and runs, for each:
-  `docker run --rm ghcr.io/slok/sloth:v0.16.0 generate --default-slo-period=28d
-  --disable-default-slo-plugins -s '{"id":"sloth.dev/contrib/validate_victoria_metrics/v1"}'
-  -s '{"id":"sloth.dev/core/sli_rules/v1"}'`. The validator rejects queries
-  that are not valid MetricsQL.
+  `docker run --rm --interactive ghcr.io/slok/sloth:v0.16.0 generate -i /dev/stdin
+  --default-slo-period=28d --disable-default-slo-plugins
+  -s '{"id":"sloth.dev/contrib/validate_victoria_metrics/v1"}'
+  -s '{"id":"sloth.dev/core/sli_rules/v1"}' < slo.yaml`. The validator rejects
+  queries that are not valid MetricsQL. The spec goes in on stdin because
+  Docker Desktop's bind mounts briefly miss a file an editor saved by replacing it.
 - Wraps Sloth's rule groups into a `VMRule` named `<folder>-slo` in the
   namespace named like the folder (both apps use their folder name as
   namespace), and writes it to `slo-rules.yaml` with a "generated, do not
@@ -173,17 +177,29 @@ in `infrastructure/base/monitoring/helmrelease.yaml`:
   the chart refuses to render vmalert without a notifier. The blackhole
   notifier discards alerts; there are none yet.
 
-**Retention:** VMSingle `retentionPeriod` goes from `14d` to `30d` (4-week
-window plus 2 days margin). At today's ingest (about 274 million samples a day,
-1–4 bytes each) that is roughly 8–33 GB. The PVC request stays `5Gi`:
-`local-path` does not enforce it and cannot expand volumes, and changing it
-would mean recreating the volume and losing stored metrics. The node disk has
-312 GiB free. Real clusters set the size in their overlay. Watch
-`vm_data_size_bytes`; if it grows too fast, drop the API server and etcd
+**Retention and storage:** VMSingle `retentionPeriod` goes from `14d` to `30d`
+(4-week window plus 2 days margin). Measured on 2026-09-26 with the formula
+from VictoriaMetrics' sizing guide
+(`sum(vm_data_size_bytes) / sum(vm_rows{type!~"indexdb.*"})`): 193 million
+samples a day (2,234/s) at 2.21 bytes per sample, index included, before
+background merges shrink the data. That is about 13 GB for 30 days, or 15 GB
+with the 20% free space VictoriaMetrics recommends for merges. Old data is
+deleted lazily, so usage can stay above that for a while.
+
+- `base` drops its `5Gi` request, so every cluster gets the chart's default
+  `20Gi`. On a storage class that enforces the size, 5Gi would fill in about
+  12 days and VictoriaMetrics would stop accepting data.
+- devops-cs keeps `5Gi` through a patch in
+  `infrastructure/devops-cs/monitoring/kustomization.yaml`. `local-path`
+  ignores the size and can't grow the existing volume, and a new volume would
+  lose the stored metrics. The node disk has 312 GiB free.
+
+Watch `vm_data_size_bytes`; if it grows too fast, drop the API server and etcd
 histogram buckets first (the `ponytail:` note in the HelmRelease).
 
 This updates the metrics-collection spec: vmalert moves from off to on,
-retention from 14 days to 30 days.
+retention from 14 days to 30 days, and the base PVC from 5Gi to the chart's
+20Gi (devops-cs stays at 5Gi).
 
 **Access:** no ingress. vmalert UI through `kubectl port-forward`.
 
@@ -207,7 +223,8 @@ retention from 14 days to 30 days.
    - `QUERY_OVERHEAD_MS=300` on backend-api: `process-latency` rises above 0.
 4. The drift check passes; it fails after editing a `slo.yaml` without
    regenerating, and passes again after regenerating.
-5. VMSingle runs with `retentionPeriod: 30d`.
+5. VMSingle on devops-cs runs with `retentionPeriod: 30d` and still requests
+   `5Gi`.
 
 ## Known limits
 
@@ -226,7 +243,8 @@ retention from 14 days to 30 days.
 - Sloth's 4-week SLI is the average of 5-minute ratios, not total bad events
   over total events. Close for steady traffic; bursty traffic skews it. It
   becomes meaningful 28 days after deployment.
-- Disk use (8–33 GB estimated) exceeds the nominal 5Gi request.
+- On devops-cs, disk use (about 15 GB estimated) exceeds the nominal 5Gi
+  request; `local-path` doesn't enforce it.
 - The drift check only runs when someone runs it; there is no CI.
 
 ## Out of scope
