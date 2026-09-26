@@ -68,8 +68,12 @@ Add the three annotations (port `8000`, path `/metrics`) to the pod template in:
 - `apps/base/ml-api/deployment.yaml`
 - `apps/base/backend-api/deployment.yaml`
 
-Flux controllers already carry the annotations. Postgres and load-generator
-expose no metrics endpoint; cAdvisor and kube-state-metrics cover them.
+Flux controllers already carry the annotations. Postgres gets a
+`postgres-exporter` sidecar (`quay.io/prometheuscommunity/postgres-exporter`,
+port `9187`, credentials from `postgres-credentials`) in
+`databases/base/postgres/deployment.yaml`, annotated with port `9187`. The
+load-generator exposes no metrics endpoint; cAdvisor and kube-state-metrics
+cover it.
 
 ## Folder layout
 
@@ -131,13 +135,14 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
 
 1. `flux get kustomizations` and `flux get helmreleases -A` show all Ready.
 2. VMAgent's target list shows every target up, and each annotated pod exactly
-   once: 2 ml-api, 2 backend-api, 4 Flux controllers. Kubelet/cAdvisor,
+   once: 2 ml-api, 2 backend-api, 4 Flux controllers, 1 postgres. Kubelet/cAdvisor,
    kube-state-metrics, CoreDNS and VictoriaMetrics' own components are also up.
 3. These queries return data:
    - `backend_api_requests_total`
    - `container_memory_working_set_bytes{namespace="postgres"}`
    - `kube_pod_container_status_restarts_total`
    - `gotk_resource_info` (one series per Flux object, with its `ready` state)
+   - `pg_up` (1 when the exporter can reach postgres)
 4. After deleting the VMSingle pod, data from before the deletion is still
    queryable.
 
@@ -149,4 +154,4 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
 
 ## Out of scope
 
-Grafana, alerting, SLOs, postgres exporter, logging, ingress, high availability.
+Grafana, alerting, SLOs, logging, ingress, high availability.
