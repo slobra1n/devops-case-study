@@ -88,6 +88,61 @@ spec:
         sloth_service: backend-api
         sloth_slo: process-availability
         sloth_window: 4w
+  - name: sloth-slo-meta-recordings-backend-api-process-availability
+    rules:
+    - record: slo:objective:ratio
+      expr: vector(0.9990000000000001)
+      labels:
+        sloth_id: backend-api-process-availability
+        sloth_service: backend-api
+        sloth_slo: process-availability
+    - record: slo:error_budget:ratio
+      expr: vector(1-0.9990000000000001)
+      labels:
+        sloth_id: backend-api-process-availability
+        sloth_service: backend-api
+        sloth_slo: process-availability
+    - record: slo:time_period:days
+      expr: vector(28)
+      labels:
+        sloth_id: backend-api-process-availability
+        sloth_service: backend-api
+        sloth_slo: process-availability
+    - record: slo:current_burn_rate:ratio
+      expr: |
+        slo:sli_error:ratio_rate5m{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}
+        / on(sloth_id, sloth_slo, sloth_service) group_left
+        slo:error_budget:ratio{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}
+      labels:
+        sloth_id: backend-api-process-availability
+        sloth_service: backend-api
+        sloth_slo: process-availability
+    - record: slo:period_burn_rate:ratio
+      expr: |
+        slo:sli_error:ratio_rate4w{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}
+        / on(sloth_id, sloth_slo, sloth_service) group_left
+        slo:error_budget:ratio{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}
+      labels:
+        sloth_id: backend-api-process-availability
+        sloth_service: backend-api
+        sloth_slo: process-availability
+    - record: slo:period_error_budget_remaining:ratio
+      expr: 1 - slo:period_burn_rate:ratio{sloth_id="backend-api-process-availability",
+        sloth_service="backend-api", sloth_slo="process-availability"}
+      labels:
+        sloth_id: backend-api-process-availability
+        sloth_service: backend-api
+        sloth_slo: process-availability
+    - record: sloth_slo_info
+      expr: vector(1)
+      labels:
+        sloth_id: backend-api-process-availability
+        sloth_mode: cli-gen-prom
+        sloth_objective: "99.9"
+        sloth_service: backend-api
+        sloth_slo: process-availability
+        sloth_spec: prometheus/v1
+        sloth_version: v0.16.0
   - name: sloth-slo-sli-recordings-backend-api-process-latency
     rules:
     - record: slo:sli_error:ratio_rate5m
@@ -184,3 +239,58 @@ spec:
         sloth_service: backend-api
         sloth_slo: process-latency
         sloth_window: 4w
+  - name: sloth-slo-meta-recordings-backend-api-process-latency
+    rules:
+    - record: slo:objective:ratio
+      expr: vector(0.9990000000000001)
+      labels:
+        sloth_id: backend-api-process-latency
+        sloth_service: backend-api
+        sloth_slo: process-latency
+    - record: slo:error_budget:ratio
+      expr: vector(1-0.9990000000000001)
+      labels:
+        sloth_id: backend-api-process-latency
+        sloth_service: backend-api
+        sloth_slo: process-latency
+    - record: slo:time_period:days
+      expr: vector(28)
+      labels:
+        sloth_id: backend-api-process-latency
+        sloth_service: backend-api
+        sloth_slo: process-latency
+    - record: slo:current_burn_rate:ratio
+      expr: |
+        slo:sli_error:ratio_rate5m{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}
+        / on(sloth_id, sloth_slo, sloth_service) group_left
+        slo:error_budget:ratio{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}
+      labels:
+        sloth_id: backend-api-process-latency
+        sloth_service: backend-api
+        sloth_slo: process-latency
+    - record: slo:period_burn_rate:ratio
+      expr: |
+        slo:sli_error:ratio_rate4w{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}
+        / on(sloth_id, sloth_slo, sloth_service) group_left
+        slo:error_budget:ratio{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}
+      labels:
+        sloth_id: backend-api-process-latency
+        sloth_service: backend-api
+        sloth_slo: process-latency
+    - record: slo:period_error_budget_remaining:ratio
+      expr: 1 - slo:period_burn_rate:ratio{sloth_id="backend-api-process-latency", sloth_service="backend-api",
+        sloth_slo="process-latency"}
+      labels:
+        sloth_id: backend-api-process-latency
+        sloth_service: backend-api
+        sloth_slo: process-latency
+    - record: sloth_slo_info
+      expr: vector(1)
+      labels:
+        sloth_id: backend-api-process-latency
+        sloth_mode: cli-gen-prom
+        sloth_objective: "99.9"
+        sloth_service: backend-api
+        sloth_slo: process-latency
+        sloth_spec: prometheus/v1
+        sloth_version: v0.16.0

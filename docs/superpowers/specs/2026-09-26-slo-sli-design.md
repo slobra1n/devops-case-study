@@ -12,8 +12,10 @@ targets later means the steps under "When targets are chosen".
 ## Decisions
 
 - **Scope:** SLI recording rules evaluated by vmalert, and Alertmanager
-  routing. Dashboards come next. SLO targets, burn-rate alerts, notification
-  channels, the SLO document and the error budget policy come later.
+  routing. The metadata rules the SLO dashboards read came with the
+  [dashboards spec](2026-09-26-grafana-dashboards-design.md). SLO targets,
+  burn-rate alerts, notification channels, the SLO document and the error
+  budget policy come later.
 - **SLI style:** the ratio of bad events to valid events, as the workbook
   recommends ("What to Measure: Using SLIs").
 - **SLO window:** 4-week rolling window, the workbook's general-purpose choice
@@ -31,8 +33,8 @@ targets later means the steps under "When targets are chosen".
 - **Targets later:** Sloth requires an `objective` and an `alerting.name` on
   every SLO, even when it generates no alerts. Each SLO carries
   `objective: 99.9`, marked as a placeholder, and the alert name it will use
-  later. Nothing uses either yet: the plugin chain generates SLI rules only.
-  Latency thresholds are provisional.
+  later. The SLO dashboards measure burn rate and budget against the
+  placeholder; no alert uses either yet. Latency thresholds are provisional.
 - **Receivers:** `page` and `ticket` without integrations; alerts are visible
   in the Alertmanager UI.
 
@@ -125,7 +127,7 @@ The backend is not probed: each `POST /process` inserts a row into
 ```
 scripts/
   slo-generate.sh          common: Sloth image v0.16.0, 28d windows, VM validator,
-                           SLI rules only; writes VMRules
+                           SLI and metadata rules; writes VMRules
 infrastructure/base/monitoring/
   blackbox-exporter.yaml   adds the http_post_2xx module
 apps/base/backend-api/
@@ -142,7 +144,8 @@ apps/base/ml-api/
   `docker run --rm --interactive ghcr.io/slok/sloth:v0.16.0 generate -i /dev/stdin
   --default-slo-period=28d --disable-default-slo-plugins
   -s '{"id":"sloth.dev/contrib/validate_victoria_metrics/v1"}'
-  -s '{"id":"sloth.dev/core/sli_rules/v1"}' < slo.yaml`. The validator rejects
+  -s '{"id":"sloth.dev/core/sli_rules/v1"}'
+  -s '{"id":"sloth.dev/core/metadata_rules/v1"}' < slo.yaml`. The validator rejects
   queries that are not valid MetricsQL. The spec goes in on stdin because
   Docker Desktop's bind mounts briefly miss a file an editor saved by replacing it.
 - Wraps Sloth's rule groups into a `VMRule` named `<folder>-slo` in the
@@ -162,11 +165,11 @@ Workflow: edit `slo.yaml`, run the script, commit both files. Flux applies
 apps after infrastructure, so the `VMRule` and `VMProbe` CRDs exist first.
 
 When targets are chosen: set `objective` in each `slo.yaml`, and add
-`sloth.dev/core/metadata_rules/v1` and `sloth.dev/core/alert_rules/v1` to the
-plugin chain in the script. Every SLO then gets the workbook's page and ticket
-alerts (Sloth's `google-28d` windows: page 1 h/5 m and 6 h/30 m, ticket
-1 d/2 h and 3 d/6 h), labelled `sloth_severity=page|ticket`, which the
-Alertmanager routes below already handle.
+`sloth.dev/core/alert_rules/v1` to the plugin chain in the script. Every SLO
+then gets the workbook's page and ticket alerts (Sloth's `google-28d` windows:
+page 1 h/5 m and 6 h/30 m, ticket 1 d/2 h and 3 d/6 h), labelled
+`sloth_severity=page|ticket`, which the Alertmanager routes below already
+handle.
 
 SLOs are defined once in `base`; every cluster gets the same SLOs. Per-cluster
 SLO overrides are not built.
@@ -178,7 +181,7 @@ switched on in `infrastructure/base/monitoring/helmrelease.yaml`:
 
 - `vmalert.enabled: true`. It selects every `VMRule` in every namespace
   (`selectAllByDefault`), evaluates every 20 s and writes the recorded series
-  into VMSingle: 4 SLOs × 8 windows = 32 recording rules, no alert rules.
+  into VMSingle: 4 SLOs × (8 SLI windows + 7 metadata rules) = 60 recording rules, no alert rules.
 - `alertmanager.enabled: true`. The chart points vmalert at it. Configuration:
 
 ```yaml
@@ -280,5 +283,5 @@ chart's 20Gi (devops-cs stays at 5Gi).
 
 ## Out of scope
 
-SLO targets, burn-rate alerts, notification channels, dashboards, the SLO
-document and error budget policy, CI.
+SLO targets, burn-rate alerts, notification channels, the SLO document and
+error budget policy, CI.
