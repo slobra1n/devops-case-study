@@ -38,3 +38,18 @@ so there was no way to order them.
 - Adding another database (e.g. mysql) later means adding a folder in
   `databases/`. `clusters/` does not change, and the apps wait for every
   database through the single `databases` layer.
+
+## Known issue: backend 500s after a restart
+
+- Symptom: `POST /process` returns 500 with `relation "documents" does not
+  exist`.
+- Cause: postgres stores its data in `emptyDir`, so every restart gives it an
+  empty database. backend-api creates the `documents` table only once at
+  startup, and `_init_db` swallows errors, so if postgres isn't ready yet the
+  table is never created.
+- `dependsOn` doesn't fix this. It only sets the order of Flux reconciliation.
+  It does nothing when Kubernetes restarts pods, e.g. after a cluster restart.
+- The proper fix is in the application (retry table creation, or create it on
+  connect). That is out of scope here.
+- Workaround for now: once postgres is running, restart the backend:
+  `kubectl -n backend-api rollout restart deployment/backend-api`
