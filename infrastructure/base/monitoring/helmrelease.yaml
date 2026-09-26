@@ -15,8 +15,21 @@ spec:
   upgrade:
     crds: CreateReplace
   values:
+    # Dashboards come from ConfigMaps in git (dashboards/); the sidecar puts each
+    # into the folder its grafana_folder annotation names. No persistence: every
+    # dashboard is provisioned, so a restart loses nothing. Nothing is downloaded
+    # at startup: Grafana's preinstalled plugins (drilldown apps, extra data
+    # sources) are off; the dashboards use only built-in panels and Prometheus.
     grafana:
-      enabled: false
+      enabled: true
+      grafana.ini:
+        plugins:
+          preinstall_disabled: true
+      sidecar:
+        dashboards:
+          folderAnnotation: grafana_folder
+          provider:
+            foldersFromFilesStructure: true
     # SLO alerting (docs/superpowers/specs/2026-09-26-slo-sli-design.md).
     # vmalert evaluates VMRule objects in any namespace; the chart points it at
     # this Alertmanager. The receivers have no integrations yet: alerts are
@@ -43,6 +56,9 @@ spec:
     defaultRules:
       enabled: false
     defaultDashboards:
+      enabled: false
+    # Fetches dashboards and rules from the internet at deploy time; both are off.
+    syncJob:
       enabled: false
     prometheus-node-exporter:
       enabled: true

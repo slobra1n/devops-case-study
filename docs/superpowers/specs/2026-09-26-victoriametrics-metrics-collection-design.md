@@ -43,7 +43,8 @@ Namespace: `monitoring`.
 | Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks ml-api `/health` and backend-api `/ready` through their Services, like a client; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
 | node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
 | vmalert, Alertmanager | on | Evaluate the SLO recording rules and route future alerts to `page` and `ticket` receivers without integrations ([SLO spec](2026-09-26-slo-sli-design.md)) |
-| Grafana, default rules, default dashboards | off | Out of scope |
+| Grafana | on | Dashboards provisioned from git, no persistence, nothing downloaded at startup ([dashboards spec](2026-09-26-grafana-dashboards-design.md)) |
+| Default rules, default dashboards, dashboard sync job | off | Rules and dashboards come from this repo |
 | controller-manager, scheduler, etcd scrapes | off | k3s runs them inside its one process and serves no separate endpoints (10257/10259 aren't listening). Their metrics come through the kubelet `/metrics` scrape |
 | API server scrape | off | On k3s it returns the same registry as the kubelet's `/metrics` ([k3s docs](https://docs.k3s.io/reference/metrics): scrape a single endpoint). Its alert groups are then not installed; add k3s-adapted ones with alerting |
 
@@ -169,4 +170,4 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
 
 ## Out of scope
 
-Grafana, alerting, SLOs, logging, ingress, high availability.
+Dashboards, alerting and SLOs (each has its own spec), logging, ingress, high availability.

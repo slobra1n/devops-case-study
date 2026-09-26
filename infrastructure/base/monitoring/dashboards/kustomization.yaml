@@ -1,0 +1,43 @@
+# Grafana dashboards (docs/superpowers/specs/2026-09-26-grafana-dashboards-design.md).
+# Each file becomes a ConfigMap; Grafana's sidecar loads every ConfigMap labelled
+# grafana_dashboard=1 into the folder named by its grafana_folder annotation.
+# Clusters replace one in their overlay with a configMapGenerator entry of the
+# same name and `behavior: replace`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+generatorOptions:
+  disableNameSuffixHash: true # nothing mounts them by name; stable names keep overrides simple
+  labels:
+    grafana_dashboard: "1"
+configMapGenerator:
+  # Sloth, edited for provisioning and the 28-day period (see the spec):
+  # https://grafana.com/grafana/dashboards/14643 revision 2
+  - name: dashboard-sloth-overview
+    files: [slos/sloth-overview.json]
+    options: {annotations: {grafana_folder: SLOs}}
+  # https://grafana.com/grafana/dashboards/14348 revision 5
+  - name: dashboard-sloth-detail
+    files: [slos/sloth-detail.json]
+    options: {annotations: {grafana_folder: SLOs}}
+  # Upstream, unedited. To update, download again at the new pin.
+  # https://github.com/fluxcd/flux2-monitoring-example/blob/7ab65dc8b90f7a6751d88f18bbb4e1bee33bf334/monitoring/configs/dashboards/cluster.json
+  - name: dashboard-flux-cluster
+    files: [components/flux-cluster.json]
+    options: {annotations: {grafana_folder: Components}}
+  # https://github.com/VictoriaMetrics/VictoriaMetrics/blob/v1.152.0/dashboards/victoriametrics.json
+  - name: dashboard-vm-single
+    files: [components/vm-single.json]
+    options: {annotations: {grafana_folder: Components}}
+  # https://grafana.com/grafana/dashboards/1860 revision 45
+  - name: dashboard-node-exporter-full
+    files: [components/node-exporter-full.json]
+    options: {annotations: {grafana_folder: Components}}
+  # https://github.com/dotdc/grafana-dashboards-kubernetes/blob/v3.0.8/dashboards/k8s-views-pods.json
+  - name: dashboard-k8s-pods
+    files: [components/k8s-pods.json]
+    options: {annotations: {grafana_folder: Components}}
+  # https://github.com/prometheus-community/postgres_exporter/blob/v0.20.1/postgres_mixin/dashboards/postgres-overview.json
+  - name: dashboard-postgres
+    files: [components/postgres.json]
+    options: {annotations: {grafana_folder: Components}}

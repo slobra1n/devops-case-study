@@ -5,3 +5,4 @@ resources:
   - helmrepository.yaml
   - helmrelease.yaml
   - blackbox-exporter.yaml
+  - dashboards
