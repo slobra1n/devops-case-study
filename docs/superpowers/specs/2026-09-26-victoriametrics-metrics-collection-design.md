@@ -16,7 +16,9 @@ scrape rule. This step collects and stores metrics only.
 - **Storage:** VMSingle on a 5Gi PVC (`local-path` StorageClass), 14 days
   retention. Metrics must survive pod and cluster restarts.
 - **Layout:** `infrastructure/` gets the same base + overlay layout as `apps/`
-  and `databases/`, because more environments are expected.
+  and `databases/`, because more environments are expected. It keeps Flux's
+  `controllers` / `configs` split: controllers install tools and their CRDs,
+  configs hold objects that use those CRDs.
 
 ## Components
 
@@ -24,7 +26,7 @@ Namespace: `monitoring`.
 
 | Component | State | Reason |
 |---|---|---|
-| VictoriaMetrics operator + CRDs | on | Manages VMSingle and VMAgent |
+| VictoriaMetrics operator + CRDs | on | Manages VMSingle, VMAgent and scrape objects |
 | VMAgent | on | Scrapes all targets |
 | VMSingle | on | Stores metrics |
 | kube-state-metrics | on | Restarts, readiness and replicas for every pod |
@@ -45,10 +47,12 @@ prometheus.io/port: "<port>"
 prometheus.io/path: "/metrics"   # optional, defaults to /metrics
 ```
 
-The rule is the standard `kubernetes-pods` scrape job, set in
-`vmagent.spec.inlineScrapeConfig` in the HelmRelease values. Pods without
-`prometheus.io/scrape: "true"` are not scraped by this rule. Each annotated pod
-must appear exactly once as a target.
+The rule is one `VMPodScrape` named `annotations-discovery` in `monitoring`,
+following the VictoriaMetrics operator's documented
+[Auto-discovery for prometheus.io annotations](https://docs.victoriametrics.com/operator/integrations/prometheus/)
+example. It lives in `infra-configs` because it needs the operator's CRD. Pods
+without `prometheus.io/scrape: "true"` are not scraped by this rule. Each
+annotated pod must appear exactly once as a target.
 
 ## App changes
 
@@ -66,23 +70,28 @@ expose no metrics endpoint; cAdvisor and kube-state-metrics cover them.
 infrastructure/
   base/
     controllers/victoria-metrics/   namespace, HelmRepository, HelmRelease
+    configs/victoria-metrics/       VMPodScrape
   devops-cs/
     controllers/
       kustomization.yaml            lists victoria-metrics
       victoria-metrics/             kustomization.yaml -> ../../../base/controllers/victoria-metrics
+    configs/
+      kustomization.yaml            lists victoria-metrics
+      victoria-metrics/             kustomization.yaml -> ../../../base/configs/victoria-metrics
 ```
 
 - Remove the empty `infrastructure/controllers/`, `infrastructure/configs/` and
   the unused `infrastructure/kustomization.yaml`.
 - `clusters/devops-cs/infrastructure.yaml`: `infra-controllers` path becomes
-  `./infrastructure/devops-cs/controllers`. Remove the `infra-configs` Flux
-  Kustomization: it applies nothing and nothing depends on it. Add it back when
-  the first config exists.
+  `./infrastructure/devops-cs/controllers`, `infra-configs` path becomes
+  `./infrastructure/devops-cs/configs`.
 
 ## Flux ordering
 
-`infra-controllers` installs everything; `databases` and `apps` don't depend on
-it.
+Unchanged chain: `infra-controllers` installs the chart and its CRDs;
+`infra-configs` (`dependsOn: infra-controllers`) applies the `VMPodScrape`.
+`databases` and `apps` don't depend on monitoring, because annotations need no
+CRD.
 
 ## Access
 

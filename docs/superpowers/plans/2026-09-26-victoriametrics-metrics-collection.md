@@ -4,7 +4,7 @@
 
 **Goal:** Collect metrics from every pod in the cluster into VictoriaMetrics with one annotation-based scrape rule.
 
-**Architecture:** Flux installs the trimmed `victoria-metrics-k8s-stack` Helm chart through the `infra-controllers` Kustomization, from a new base + overlay layout under `infrastructure/`. VMAgent gets the standard `kubernetes-pods` job inline; ml-api and backend-api opt in with `prometheus.io/*` pod annotations.
+**Architecture:** Flux installs the trimmed `victoria-metrics-k8s-stack` Helm chart through `infra-controllers`, from a new base + overlay layout under `infrastructure/`. `infra-configs` then applies one `VMPodScrape` that implements the `prometheus.io/*` annotations, as documented by the VictoriaMetrics operator. ml-api and backend-api opt in with those annotations.
 
 **Tech Stack:** Flux v2.9.5 (`helm.toolkit.fluxcd.io/v2`, `source.toolkit.fluxcd.io/v1`), Kustomize via `kubectl kustomize`, `victoria-metrics-k8s-stack` 0.93.0, k3d/k3s.
 
@@ -16,8 +16,8 @@
 - Chart: `victoria-metrics-k8s-stack` version `0.93.0` from `https://victoriametrics.github.io/helm-charts/` (latest release, 2026-09-20).
 - VMSingle: 5Gi PVC on the cluster's default StorageClass (`local-path`), `retentionPeriod: "14d"`.
 - Off: Grafana, Alertmanager, vmalert, default rules, default dashboards, node-exporter, API server, controller-manager, scheduler, etcd.
-- Scrape rule: standard `kubernetes-pods` job in `vmagent.spec.inlineScrapeConfig`; no `VMPodScrape`.
-- Layout: `infrastructure/base/...` + `infrastructure/devops-cs/...`, one folder per component, same as `apps/` and `databases/`.
+- Scrape rule: one `VMPodScrape` `monitoring/annotations-discovery` in `infra-configs`, based on the VictoriaMetrics operator's [annotation auto-discovery example](https://docs.victoriametrics.com/operator/integrations/prometheus/); no `inlineScrapeConfig`.
+- Layout: `infrastructure/base/...` + `infrastructure/devops-cs/...`, one folder per component, same as `apps/` and `databases/`. Keeps Flux's `controllers` (tools + CRDs) / `configs` (objects using those CRDs) split.
 - `databases` and `apps` do not depend on monitoring. No ingress.
 - No application code changes. Only pod-template annotations in `apps/base`.
 - No `git push` in this plan. The user pushes; Task 3 runs after that.
@@ -25,12 +25,12 @@
 ## Review Focus
 
 1. An undeclared port, a multi-port pod or an annotated chart pod shows up as a missing or extra target. Task 3 checks exactly 8 pods, each scraped once.
-2. CRDs missing on install or stale after upgrades. The chart installs them (Flux default `Create`) and the HelmRelease sets `upgrade.crds: CreateReplace`; Task 3 checks the HelmRelease is Ready.
+2. CRDs missing on install or stale after upgrades. The chart installs them (Flux default `Create`), the HelmRelease sets `upgrade.crds: CreateReplace`, and `infra-configs` waits for `infra-controllers` before applying the `VMPodScrape`. Task 3 checks every Kustomization and the HelmRelease are Ready.
 3. Metrics lost on VMSingle restart. Task 3 checks the PVC is Bound and data from before a pod deletion is still visible.
 
 ---
 
-## Task 1: Infrastructure base + overlay with the VictoriaMetrics HelmRelease
+## Task 1: Infrastructure base + overlay with the VictoriaMetrics stack
 
 **Files:**
 - Delete: `infrastructure/kustomization.yaml`, `infrastructure/controllers/kustomization.yaml`, `infrastructure/configs/kustomization.yaml`
@@ -38,9 +38,13 @@
 - Create: `infrastructure/base/controllers/victoria-metrics/helmrepository.yaml`
 - Create: `infrastructure/base/controllers/victoria-metrics/helmrelease.yaml`
 - Create: `infrastructure/base/controllers/victoria-metrics/kustomization.yaml`
+- Create: `infrastructure/base/configs/victoria-metrics/vmpodscrape.yaml`
+- Create: `infrastructure/base/configs/victoria-metrics/kustomization.yaml`
 - Create: `infrastructure/devops-cs/controllers/kustomization.yaml`
 - Create: `infrastructure/devops-cs/controllers/victoria-metrics/kustomization.yaml`
-- Modify: `clusters/devops-cs/infrastructure.yaml` (`infra-controllers` path; remove `infra-configs`)
+- Create: `infrastructure/devops-cs/configs/kustomization.yaml`
+- Create: `infrastructure/devops-cs/configs/victoria-metrics/kustomization.yaml`
+- Modify: `clusters/devops-cs/infrastructure.yaml` (both `path:` lines)
 
 - [ ] **Step 1: Remove the old empty layout**
 
@@ -119,42 +123,6 @@ spec:
           resources:
             requests:
               storage: 5Gi
-    vmagent:
-      spec:
-        # Standard annotation-based pod discovery, copied from the
-        # victoria-metrics-agent chart's default config.
-        inlineScrapeConfig: |
-          - job_name: kubernetes-pods
-            kubernetes_sd_configs:
-              - role: pod
-            relabel_configs:
-              - action: drop
-                source_labels: [__meta_kubernetes_pod_container_init]
-                regex: true
-              - action: keep_if_equal
-                source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_container_port_number]
-              - action: keep
-                source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-                regex: true
-              - action: replace
-                source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-                target_label: __metrics_path__
-                regex: (.+)
-              - action: replace
-                source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-                regex: ([^:]+)(?::\d+)?;(\d+)
-                replacement: $1:$2
-                target_label: __address__
-              - action: labelmap
-                regex: __meta_kubernetes_pod_label_(.+)
-              - source_labels: [__meta_kubernetes_pod_name]
-                target_label: pod
-              - source_labels: [__meta_kubernetes_pod_container_name]
-                target_label: container
-              - source_labels: [__meta_kubernetes_namespace]
-                target_label: namespace
-              - source_labels: [__meta_kubernetes_pod_node_name]
-                target_label: node
 ```
 
 `infrastructure/base/controllers/victoria-metrics/kustomization.yaml`:
@@ -166,6 +134,52 @@ resources:
   - namespace.yaml
   - helmrepository.yaml
   - helmrelease.yaml
+```
+
+`infrastructure/base/configs/victoria-metrics/vmpodscrape.yaml`:
+
+```yaml
+# Based on the VictoriaMetrics operator docs, "Auto-discovery for
+# prometheus.io annotations":
+# https://docs.victoriametrics.com/operator/integrations/prometheus/
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: annotations-discovery
+  namespace: monitoring
+spec:
+  # Every pod in every namespace; the relabel rules keep only annotated ones.
+  namespaceSelector:
+    any: true
+  selector: {}
+  podMetricsEndpoints:
+    - relabelConfigs:
+        - action: drop
+          source_labels: [__meta_kubernetes_pod_container_init]
+          regex: "true"
+        - action: keep_if_equal
+          source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_container_port_number]
+        - action: keep
+          source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          regex: "true"
+        # regex (.+) keeps the default /metrics when the path annotation is
+        # absent (the Flux controllers don't set it).
+        - action: replace
+          source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          target_label: __metrics_path__
+          regex: (.+)
+        - action: replace
+          source_labels: [__meta_kubernetes_pod_node_name]
+          target_label: node
+```
+
+`infrastructure/base/configs/victoria-metrics/kustomization.yaml`:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - vmpodscrape.yaml
 ```
 
 - [ ] **Step 3: Write the overlay**
@@ -188,25 +202,38 @@ resources:
   - ../../../base/controllers/victoria-metrics
 ```
 
+`infrastructure/devops-cs/configs/kustomization.yaml`:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - victoria-metrics
+```
+
+`infrastructure/devops-cs/configs/victoria-metrics/kustomization.yaml`:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/configs/victoria-metrics
+```
+
 - [ ] **Step 4: Point Flux at the overlay**
 
-In `clusters/devops-cs/infrastructure.yaml`:
+In `clusters/devops-cs/infrastructure.yaml` change:
 - `infra-controllers`: `path: ./infrastructure/controllers` → `path: ./infrastructure/devops-cs/controllers`
-- Delete the `infra-configs` document (the `---` and everything after it). It applies nothing and nothing depends on it; add it back when the first config exists.
+- `infra-configs`: `path: ./infrastructure/configs` → `path: ./infrastructure/devops-cs/configs`
 
 - [ ] **Step 5: Verify the render**
 
 ```sh
 kubectl kustomize infrastructure/devops-cs/controllers | grep -E '^kind:'
-kubectl kustomize infrastructure/devops-cs/controllers | python3 -c '
-import sys, yaml
-hr = next(d for d in yaml.safe_load_all(sys.stdin) if d and d["kind"] == "HelmRelease")
-jobs = yaml.safe_load(hr["spec"]["values"]["vmagent"]["spec"]["inlineScrapeConfig"])
-assert [j["job_name"] for j in jobs] == ["kubernetes-pods"]
-print("scrape config parses")'
+kubectl kustomize infrastructure/devops-cs/configs | grep -E '^kind:'
 ```
 
-Expected: `kind: Namespace`, `kind: HelmRepository`, `kind: HelmRelease`; `scrape config parses`.
+Expected: `kind: Namespace`, `kind: HelmRepository`, `kind: HelmRelease`; then `kind: VMPodScrape`.
 
 - [ ] **Step 6: Commit**
 
@@ -290,7 +317,7 @@ If the service names differ, use the ones `get svc` lists. Give VMAgent a minute
 
 Open http://localhost:8429/targets.
 
-Expected: every target `up`. The `kubernetes-pods` group has exactly 8 targets: 2 `ml-api`, 2 `backend-api`, 4 `flux-system` controllers. Groups for kubelet, kube-state-metrics, CoreDNS and the VictoriaMetrics components are also present. Any extra or missing pod: see Review Focus 1.
+Expected: every target `up`. The `annotations-discovery` group has exactly 8 targets: 2 `ml-api`, 2 `backend-api`, 4 `flux-system` controllers. Groups for kubelet, kube-state-metrics, CoreDNS and the VictoriaMetrics components are also present. Any extra or missing pod: see Review Focus 1.
 
 - [ ] **Step 5: Data (criterion 3)**
 
