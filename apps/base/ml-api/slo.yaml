@@ -1,0 +1,25 @@
+# SLIs of ml-api for Sloth. Not a Kubernetes object: not in kustomization.yaml.
+# After editing, run scripts/slo-generate.sh and commit both files.
+version: prometheus/v1
+service: ml-api
+slos:
+  - name: predict-availability
+    alerting:
+      name: MlApiPredictAvailability # used once alert rules are generated
+    objective: 99.9 # placeholder, required by Sloth; unused until targets are set
+    sli:
+      events:
+        error_query: |
+          sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
+          - sum(sum_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
+        total_query: sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
+  - name: predict-latency
+    alerting:
+      name: MlApiPredictLatency # used once alert rules are generated
+    objective: 99.9 # placeholder, required by Sloth; unused until targets are set
+    sli:
+      events:
+        error_query: |
+          sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
+          - sum(rate(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[{{.window}}]))
+        total_query: sum(rate(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))

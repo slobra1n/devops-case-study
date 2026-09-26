@@ -1,0 +1,23 @@
+# SLIs of backend-api for Sloth. Not a Kubernetes object: not in kustomization.yaml.
+# After editing, run scripts/slo-generate.sh and commit both files.
+version: prometheus/v1
+service: backend-api
+slos:
+  - name: process-availability
+    alerting:
+      name: BackendApiProcessAvailability # used once alert rules are generated
+    objective: 99.9 # placeholder, required by Sloth; unused until targets are set
+    sli:
+      events:
+        error_query: sum(rate(backend_api_requests_total{endpoint="/process",status=~"5.."}[{{.window}}])) or vector(0)
+        total_query: sum(rate(backend_api_requests_total{endpoint="/process"}[{{.window}}]))
+  - name: process-latency
+    alerting:
+      name: BackendApiProcessLatency # used once alert rules are generated
+    objective: 99.9 # placeholder, required by Sloth; unused until targets are set
+    sli:
+      events:
+        error_query: |
+          sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[{{.window}}]))
+          - sum(rate(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[{{.window}}]))
+        total_query: sum(rate(backend_api_request_duration_seconds_count{endpoint="/process"}[{{.window}}]))

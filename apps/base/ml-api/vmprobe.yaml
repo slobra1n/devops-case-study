@@ -1,0 +1,17 @@
+# Black-box source of the predict-availability SLI (slo.yaml): a synthetic
+# POST /predict every 30 s through the shared blackbox exporter. ml-api's own
+# counters only ever record status 200, so they can't show its failures.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: predict
+  namespace: ml-api
+spec:
+  vmProberSpec:
+    url: prometheus-blackbox-exporter.monitoring.svc.cluster.local:9115
+  module: http_post_2xx
+  interval: 30s
+  targets:
+    staticConfig:
+      targets:
+        - http://ml-api.ml-api.svc.cluster.local:8000/predict
