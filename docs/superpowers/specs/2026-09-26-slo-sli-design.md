@@ -4,15 +4,15 @@
 
 Measure the user-facing SLIs of ml-api and backend-api the way the Google SRE
 workbook prescribes ([Implementing SLOs](https://sre.google/workbook/implementing-slos/),
-[Alerting on SLOs](https://sre.google/workbook/alerting-on-slos/)), and set up
-the parts its alerting needs. Choosing targets later then only means filling in
-numbers. This step records SLIs and routes alerts; it sets no targets and
-creates no alert rules.
+[Alerting on SLOs](https://sre.google/workbook/alerting-on-slos/)), with the
+recording windows its alerting needs. Choosing targets later then only means
+filling in numbers. This step records SLIs; it sets no targets and creates no
+alert rules.
 
 ## Decisions
 
-- **Scope:** SLI recording rules, vmalert and Alertmanager routing. Dashboards
-  come next. SLO targets, burn-rate alerts, the SLO document and the error
+- **Scope:** SLI recording rules, evaluated by vmalert. Dashboards come next.
+  SLO targets, burn-rate alerts, Alertmanager, the SLO document and the error
   budget policy come later.
 - **SLI style:** the ratio of bad events to valid events, as the workbook
   recommends ("What to Measure: Using SLIs").
@@ -31,8 +31,6 @@ creates no alert rules.
 - **Targets later:** Sloth requires an `objective` field, so every SLO carries
   `objective: 99.9` marked as a placeholder. Nothing uses it: the plugin chain
   generates SLI rules only. Latency thresholds are provisional.
-- **Receivers:** `page` and `ticket` without integrations; alerts are visible in
-  the Alertmanager UI.
 
 ## SLIs
 
@@ -89,14 +87,13 @@ The ml-api code (`/app/app.py`) only ever records `status="200"` for
 `/predict`; the handler has no error path. Its real failure modes are invisible
 to its own counters: memory growth until OOM kill (`MEM_ALLOC_MB`), `/health`
 turning 503 after `HEALTH_TTL_SECONDS` and the liveness probe restarting the
-pod, and refused connections during restarts. The backend code does record its
-failures: 503 when the connection pool is exhausted, 500 on any other
-exception.
+pod, and refused connections during restarts.
 
-A `VMProbe` named `predict` in the `ml-api` namespace sends `POST /predict`
-with body `{}` to `http://ml-api.ml-api.svc.cluster.local:8000/predict` every
+A `VMProbe` named `predict` in the `ml-api` namespace sends an empty
+`POST /predict` to `http://ml-api.ml-api.svc.cluster.local:8000/predict` every
 30 s through the existing blackbox exporter; its job label is
-`probe/ml-api/predict`. `/predict` has no side effects, so probing it is safe.
+`probe/ml-api/predict`. `/predict` reads no input and has no side effects, so
+probing it is safe.
 The workbook lists black-box monitoring as an SLI source and synthetic traffic
 as a remedy for low-traffic services. The blackbox exporter's built-in
 `http_2xx` module only sends GET, so its chart values gain a shared module:
@@ -106,12 +103,8 @@ config:
   modules:
     http_post_2xx:
       prober: http
-      timeout: 5s
       http:
         method: POST
-        headers:
-          Content-Type: application/json
-        body: "{}"
         preferred_ip_protocol: ip4
 ```
 
@@ -123,7 +116,7 @@ The backend is not probed: each `POST /process` inserts a row into
 ```
 scripts/
   slo-generate.sh          common: Sloth image v0.16.0, 28d windows, VM validator,
-                           SLI rules only; writes VMRules; --check mode
+                           SLI rules only; writes VMRules
 infrastructure/base/monitoring/
   blackbox-exporter.yaml   adds the http_post_2xx module
 apps/base/backend-api/
@@ -145,8 +138,9 @@ apps/base/ml-api/
   namespace named like the folder (both apps use their folder name as
   namespace), and writes it to `slo-rules.yaml` with a "generated, do not
   edit" header.
-- `--check` generates into a temporary directory and fails if any committed
-  `slo-rules.yaml` differs. There is no CI; run it before committing.
+- Drift check (no CI; run it before committing):
+  `scripts/slo-generate.sh && git diff --exit-code -- 'apps/base/*/slo-rules.yaml'`.
+  Sloth's output is deterministic, so any diff means a stale `slo-rules.yaml`.
 
 Sloth generates 8 recording rules per SLO, `slo:sli_error:ratio_rate{5m,30m,1h,2h,6h,1d,3d,4w}`,
 labelled `sloth_id`, `sloth_service`, `sloth_slo` and `sloth_window`. These are
@@ -160,41 +154,24 @@ When targets are chosen: set `objective` in each `slo.yaml`, and add
 `sloth.dev/core/metadata_rules/v1` and `sloth.dev/core/alert_rules/v1` to the
 plugin chain in the script. Every SLO then gets the workbook's page and ticket
 alerts (Sloth's `google-28d` windows: page 1 h/5 m and 6 h/30 m, ticket
-1 d/2 h and 3 d/6 h), labelled `sloth_severity=page|ticket`.
+1 d/2 h and 3 d/6 h), labelled `sloth_severity=page|ticket`. The same change
+enables Alertmanager with `page` and `ticket` receivers and an inhibit rule, so
+a page silences the ticket of the same `sloth_id` (the workbook's suppression).
 
 SLOs are defined once in `base`; every cluster gets the same SLOs. Per-cluster
 SLO overrides are not built.
 
 ## Runtime
 
-Both components come from the existing `victoria-metrics-k8s-stack` chart,
-switched on in `infrastructure/base/monitoring/helmrelease.yaml`:
+vmalert comes from the existing `victoria-metrics-k8s-stack` chart, switched on
+in `infrastructure/base/monitoring/helmrelease.yaml`:
 
 - `vmalert.enabled: true`. It selects every `VMRule` in every namespace
   (`selectAllByDefault`), evaluates every 20 s and writes the recorded series
   into VMSingle: 4 SLOs × 8 windows = 32 recording rules, no alert rules.
-- `alertmanager.enabled: true`, with this configuration:
-
-```yaml
-route:
-  receiver: ticket                                  # unrouted alerts still reach a human
-  group_by: [alertname, sloth_id]
-  routes:
-    - matchers: ['sloth_severity="page"']
-      receiver: page
-    - matchers: ['sloth_severity="ticket"']
-      receiver: ticket
-receivers:
-  - name: page
-  - name: ticket
-inhibit_rules:                                      # a page silences the ticket of the same SLO
-  - source_matchers: ['sloth_severity="page"']
-    target_matchers: ['sloth_severity="ticket"']
-    equal: [sloth_id]
-```
-
-The inhibit rule is the workbook's alert suppression: a fast burn also
-satisfies the slower conditions and would otherwise notify twice.
+- `vmalert.spec.extraArgs.notifier.blackhole: "true"`. With Alertmanager off,
+  the chart refuses to render vmalert without a notifier. The blackhole
+  notifier discards alerts; there are none yet.
 
 **Retention:** VMSingle `retentionPeriod` goes from `14d` to `30d` (4-week
 window plus 2 days margin). At today's ingest (about 274 million samples a day,
@@ -205,11 +182,10 @@ would mean recreating the volume and losing stored metrics. The node disk has
 `vm_data_size_bytes`; if it grows too fast, drop the API server and etcd
 histogram buckets first (the `ponytail:` note in the HelmRelease).
 
-This updates the metrics-collection spec: vmalert and Alertmanager move from
-off to on, retention from 14 days to 30 days.
+This updates the metrics-collection spec: vmalert moves from off to on,
+retention from 14 days to 30 days.
 
-**Access:** no ingress. vmalert and Alertmanager UIs through
-`kubectl port-forward`.
+**Access:** no ingress. vmalert UI through `kubectl port-forward`.
 
 ## Acceptance criteria
 
@@ -223,17 +199,15 @@ off to on, retention from 14 days to 30 days.
 3. Each SLI detects its own failure (throwaway tests, Flux suspended, reverted
    afterwards):
    - ml-api scaled to 0: `predict-availability` rises above 0.
-   - postgres scaled to 0: `process-availability` rises above 0. Afterwards
-     restart backend-api (known workaround in `TEMP-NOTES.md`).
+   - `CONN_RETURN_MODE=hold` on backend-api: `process-availability` rises
+     above 0. Each pod keeps every connection, its pool (10) runs out and
+     `/process` returns 503. `/ready` then fails too and the pods leave the
+     Service; the 503s before that are enough. Postgres is untouched.
    - `RESPONSE_OVERHEAD_MS=1000` on ml-api: `predict-latency` rises above 0.
    - `QUERY_OVERHEAD_MS=300` on backend-api: `process-latency` rises above 0.
-4. Synthetic alerts posted to Alertmanager's API: a `sloth_severity="page"`
-   alert is routed to `page`, a `ticket` alert to `ticket`; a ticket with the
-   same `sloth_id` as a firing page is inhibited, a ticket with another
-   `sloth_id` is not.
-5. `scripts/slo-generate.sh --check` passes; it fails after editing a
-   `slo.yaml` without regenerating, and passes again after regenerating.
-6. VMSingle runs with `retentionPeriod: 30d`.
+4. The drift check passes; it fails after editing a `slo.yaml` without
+   regenerating, and passes again after regenerating.
+5. VMSingle runs with `retentionPeriod: 30d`.
 
 ## Known limits
 
@@ -253,10 +227,9 @@ off to on, retention from 14 days to 30 days.
   over total events. Close for steady traffic; bursty traffic skews it. It
   becomes meaningful 28 days after deployment.
 - Disk use (8–33 GB estimated) exceeds the nominal 5Gi request.
-- No notification leaves the cluster.
-- `--check` only runs when someone runs it; there is no CI.
+- The drift check only runs when someone runs it; there is no CI.
 
 ## Out of scope
 
-SLO targets, burn-rate alerts, notification channels, dashboards, the SLO
-document and error budget policy, CI.
+SLO targets, burn-rate alerts, Alertmanager and notification channels,
+dashboards, the SLO document and error budget policy, CI.
