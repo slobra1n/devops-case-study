@@ -41,7 +41,7 @@ Namespace: `monitoring`.
 | node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
 | Grafana, Alertmanager, vmalert, default rules, default dashboards | off | Out of scope |
 | controller-manager, scheduler, etcd scrapes | off | Embedded in the k3s process; targets would always fail |
-| API server scrape | off | High volume, not needed for app monitoring |
+| API server scrape | on | API latency and errors; on k3s also includes scheduler, controller-manager and datastore (`etcd_*`, SQLite via kine) metrics. About 42k series, chart defaults, no drops |
 
 ## Annotation rule
 
@@ -149,6 +149,7 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
    - `node_filesystem_avail_bytes{mountpoint="/var/lib/rancher/k3s"}` (the node's
      disk that holds the `local-path` PVCs; the node container's own `/` is
      overlay and excluded by the chart)
+   - `apiserver_request_total`
 4. After deleting the VMSingle pod, data from before the deletion is still
    queryable.
 
@@ -157,6 +158,8 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
 - Annotations aren't checked. A typo or wrong port means the pod silently isn't
   scraped. Check the target list or `up`.
 - `local-path` storage is tied to the single k3d node.
+- `local-path` does not enforce the 5Gi request, and `kubelet_volume_stats_*`
+  reports the whole node disk. Watch VMSingle's own `vm_data_size_bytes`.
 
 ## Out of scope
 

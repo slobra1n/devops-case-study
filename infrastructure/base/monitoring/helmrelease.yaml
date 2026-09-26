@@ -27,8 +27,10 @@ spec:
       enabled: false
     prometheus-node-exporter:
       enabled: true
+    # ponytail: ~42k series (mostly histogram buckets), about doubles ingestion;
+    # drop apiserver_/etcd_ *_bucket series if VMSingle's disk grows too fast.
     kubeApiServer:
-      enabled: false
+      enabled: true
     kubeControllerManager:
       enabled: false
     kubeScheduler:
