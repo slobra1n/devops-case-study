@@ -196,6 +196,16 @@ spec:
           type: victoriametrics-logs-datasource
           access: proxy
           url: http://vlsingle-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:9428
+          # Level for plain-text logs. The apps log like Python/uvicorn
+          # ("INFO:     ..."), with no level field, so Grafana showed them as
+          # unknown. A `level` field (JSON logs such as Flux) wins over these.
+          jsonData:
+            logLevelRules:
+              - {field: _msg, operator: regex, value: "^CRITICAL:", level: critical}
+              - {field: _msg, operator: regex, value: "^ERROR:", level: error}
+              - {field: _msg, operator: regex, value: "^WARNING:", level: warning}
+              - {field: _msg, operator: regex, value: "^INFO:", level: info}
+              - {field: _msg, operator: regex, value: "^DEBUG:", level: debug}
     # Logs (docs/superpowers/specs/2026-09-27-logging-design.md): VLAgent runs
     # on every node and ships every container's log to VLSingle. Chart
     # defaults: retention one month (31 days), 20Gi volume.
