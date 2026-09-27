@@ -40,7 +40,6 @@ Namespace: `monitoring`.
 | kubelet cAdvisor, probes, resource scrapes | on | CPU and memory for every container, probe results |
 | kubelet `/metrics` scrape | on | On k3s the one scrape of the shared registry: kubelet, apiserver, scheduler, controller-manager and datastore (`etcd_*`, SQLite via kine) metrics, all as `job="kubelet"`. Runs on every node; the standard kubelet rules expect it. Keeps the `name` label (the chart default drops it). About 42k series |
 | CoreDNS scrape | on | Cluster DNS |
-| Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks every Service annotated with `operator.victoriametrics.com/probe-path` (ml-api `/health`, backend-api `/ready`) through the Service, like a client; the operator finds the Services, so a Service is only checked once it exists; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
 | node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
 | vmalert, Alertmanager | on | Evaluate the SLO rules and the platform alerts and route them to `page` and `ticket` receivers without integrations ([alerting spec](2026-09-27-alerting-design.md)) |
 | Sloth controller, `PrometheusRule` CRD | on | Generate the SLO rules from each app's `PrometheusServiceLevel`; the operator converts them into `VMRule`s ([SLO spec](2026-09-26-slo-sli-design.md)) |
@@ -92,8 +91,8 @@ clusters/devops-cs/                 Flux wiring only
   databases.yaml                    databases      → ./databases/devops-cs
   apps.yaml                         apps           → ./apps/devops-cs (waits for databases, infrastructure)
 infrastructure/
-  base/monitoring/                  namespace, HelmRepository, HelmRelease (incl. VMPodScrape, VMProbe),
-                                    blackbox-exporter.yaml (HelmRepository + HelmRelease)
+  base/monitoring/                  namespace, HelmRepository, HelmRelease (incl. VMPodScrape),
+                                    sloth.yaml, flux-alerts.yaml, dashboards/
   devops-cs/
     kustomization.yaml              lists monitoring
     monitoring/kustomization.yaml   → ../../base/monitoring
@@ -153,7 +152,6 @@ No ingress. Open vmui with `kubectl port-forward` to the VMSingle service.
    - `kube_pod_container_status_restarts_total`
    - `gotk_resource_info` (one series per Flux object, with its `ready` state)
    - `pg_up` (1 when the exporter can reach postgres)
-   - `probe_success` (1 for each of the two app endpoints)
    - `node_filesystem_avail_bytes{mountpoint="/var/lib/rancher/k3s"}` (the node's
      disk that holds the `local-path` PVCs; the node container's own `/` is
      overlay and excluded by the chart)

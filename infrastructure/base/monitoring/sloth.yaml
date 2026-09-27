@@ -5,7 +5,15 @@
 # assume it), MetricsQL validation, and the plugin chain: SLI recording rules,
 # the metadata rules the dashboards read, and the multiwindow, multi-burn-rate
 # page and ticket alerts (Sloth's google-30d windows).
-#
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: prometheus-community
+  namespace: monitoring
+spec:
+  interval: 24h
+  url: https://prometheus-community.github.io/helm-charts
+---
 # Only the PrometheusRule CRD from prometheus-operator: Sloth writes it and the
 # VictoriaMetrics operator converts it. The operator only watches CRDs that
 # exist when it starts, so the stack depends on this release (helmrelease.yaml).
@@ -22,7 +30,7 @@ spec:
       version: "32.0.1"
       sourceRef:
         kind: HelmRepository
-        name: prometheus-community # blackbox-exporter.yaml
+        name: prometheus-community
   values:
     crds:
       alertmanagerconfigs: {enabled: false}

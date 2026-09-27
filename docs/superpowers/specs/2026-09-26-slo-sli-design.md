@@ -32,15 +32,16 @@ platform alerts are in the [alerting spec](2026-09-27-alerting-design.md).
   Rejected: hand-written rules (a home-made Sloth to maintain).
 - **Common vs per app:** everything shared lives in one place
   (`infrastructure/base/monitoring/sloth.yaml`: Sloth version, window,
-  validator, plugin chain; the blackbox probe module in
-  `blackbox-exporter.yaml`). Each app only defines its SLIs in its own
+  validator, plugin chain). Each app only defines its SLIs in its own
   `slo.yaml`.
+- **Sources (2026-09-27):** every SLI comes from the metrics the app itself
+  exposes; no black-box probes. Until 2026-09-27 ml-api's availability came
+  from a blackbox `POST /predict` probe; it was removed together with the
+  blackbox exporter.
 - **Targets (2026-09-27):** `objective: 99` for all four SLOs, a 30-day budget
-  of 1% (7.2 h of full outage). ml-api's availability SLI has only 120 probes
-  an hour, and at 99.9% two failed probes in an hour would page; at 99% a page
-  needs about 9 minutes of full outage in an hour. The latency thresholds
-  stay at 1 s and 0.25 s: measured p99 was 0.50 s and 0.01 s. Every SLO keeps
-  its `alerting.name`, which Sloth requires.
+  of 1% (7.2 h of full outage). The latency thresholds stay at 1 s and 0.25 s:
+  measured p99 was 0.50 s and 0.01 s. Every SLO keeps its `alerting.name`,
+  which Sloth requires.
 - **Receivers:** `page` and `ticket` without integrations; alerts are visible
   in the Alertmanager UI.
 
@@ -59,7 +60,7 @@ means the same either way.
 
 | Service | SLO | Source | Bad events / valid events |
 |---|---|---|---|
-| ml-api | `predict-availability` | Black-box probe | failed `POST /predict` probes / all probes |
+| ml-api | `predict-availability` | Server counter | `POST /predict` with status 5xx / all `POST /predict` |
 | ml-api | `predict-latency` | Server histogram | requests slower than 1 s (provisional) / all `/predict` |
 | backend-api | `process-availability` | Server counter | `POST /process` with status 500 or 503 / all `POST /process` |
 | backend-api | `process-latency` | Server histogram | requests slower than 0.25 s (provisional) / all `/process` |
@@ -83,9 +84,8 @@ error: sum(increase(backend_api_request_duration_seconds_count{endpoint="/proces
 total: sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[{{.window}}]))
 
 # ml-api predict-availability
-error: sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
-       - sum(sum_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
-total: sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
+error: sum(increase(ml_api_requests_total{endpoint="/predict",status=~"5.."}[{{.window}}])) or vector(0)
+total: sum(increase(ml_api_requests_total{endpoint="/predict"}[{{.window}}]))
 
 # ml-api predict-latency
 error: sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
@@ -93,41 +93,23 @@ error: sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{
 total: sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
 ```
 
-A status series only exists after its first occurrence, so the backend has no
+A status series only exists after its first occurrence, so neither app has a
 5xx series while it is healthy. `or vector(0)` turns "no errors" into 0 instead
 of no data; without it, Sloth's 30-day SLI would average only the 5-minute
 windows that had errors.
 
-### Why ml-api availability is black-box
+### ml-api counts no errors (yet)
 
-The ml-api code (`/app/app.py`) only ever records `status="200"` for
-`/predict`; the handler has no error path. Its real failure modes are invisible
-to its own counters: memory growth until OOM kill (`MEM_ALLOC_MB`), `/health`
-turning 503 after `HEALTH_TTL_SECONDS` and the liveness probe restarting the
-pod, and refused connections during restarts.
-
-A `VMProbe` named `predict` in the `ml-api` namespace sends an empty
-`POST /predict` to the `ml-api` Service every 30 s through the existing
-blackbox exporter. It finds the Service by its `app: ml-api` label and only
-sets the path, so no host or port is written down. Its job label is
-`probe/ml-api/predict`. `/predict` reads no input and has no side effects, so
-probing it is safe.
-The workbook lists black-box monitoring as an SLI source and synthetic traffic
-as a remedy for low-traffic services. The blackbox exporter's built-in
-`http_2xx` module only sends GET, so its chart values gain a shared module:
-
-```yaml
-config:
-  modules:
-    http_post_2xx:
-      prober: http
-      http:
-        method: POST
-        preferred_ip_protocol: ip4
-```
-
-The backend is not probed: each `POST /process` inserts a row into
-`documents`.
+Checked in the running code (`/app/app.py`) and its `/metrics`: the `/predict`
+handler has no error path and only ever records `status="200"`, as the last
+step before it returns. So `predict-availability` reads 0 errors whatever
+happens. ml-api's real failure modes never reach its counters: memory growth
+until OOM kill (`MEM_ALLOC_MB`), `/health` turning 503 after
+`HEALTH_TTL_SECONDS` and the liveness probe restarting the pod, and refused
+connections while no pod is ready. The default alerts cover those
+(`KubePodNotReady`, `KubePodCrashLooping`, `KubeDeploymentReplicasMismatch`).
+The SLO is kept so it works as soon as ml-api records the real response
+status, e.g. from a middleware; no other change is needed then.
 
 ## Generation with the Sloth controller
 
@@ -136,12 +118,10 @@ infrastructure/base/monitoring/
   sloth.yaml               Sloth controller v0.16.0 (default 30d period, VM validator,
                            SLI and metadata rules) and the PrometheusRule CRD
   helmrelease.yaml         converter owner references on; waits for the CRD
-  blackbox-exporter.yaml   adds the http_post_2xx module
 apps/base/backend-api/
   slo.yaml                 PrometheusServiceLevel "backend-api"
 apps/base/ml-api/
   slo.yaml                 PrometheusServiceLevel "ml-api"
-  vmprobe.yaml             VMProbe "predict", the source of predict-availability
 clusters/devops-cs/
   apps.yaml                health check for PrometheusServiceLevel
 ```
@@ -183,7 +163,7 @@ same as the CLI's; only `sloth_slo_info`'s `sloth_mode` and `sloth_spec` labels
 differ.
 
 Workflow: edit `slo.yaml` and commit. Flux applies apps after infrastructure,
-so the `PrometheusServiceLevel`, `VMRule` and `VMProbe` CRDs exist first. With
+so the `PrometheusServiceLevel` and `VMRule` CRDs exist first. With
 services in a monorepo, its CI can check `slo.yaml` files before merge with
 the same image: `sloth validate -i <dir> -n 'slo\.yaml$'` plus the plugin
 arguments above.
@@ -248,15 +228,15 @@ chart's 20Gi (devops-cs stays at 5Gi).
 
 1. `flux get kustomizations` and `flux get helmreleases -A` show all Ready.
    `PrometheusServiceLevel` `backend-api` and `ml-api` show `GEN OK` true, their
-   `VMRule`s `backend-api` and `ml-api`, `VMProbe` `predict` and the
-   `VMAlertmanager` report operational. vmalert reports no rule evaluation
-   errors. The target `probe/ml-api/predict` is up.
+   `VMRule`s `backend-api` and `ml-api` and the `VMAlertmanager` report
+   operational. vmalert reports no rule evaluation errors.
 2. `slo:sli_error:ratio_rate5m` has exactly one series per SLO (4), and
    `slo:sli_error:ratio_rate30d` exists for all 4. While the apps are healthy,
    all values are about 0.
 3. Each SLI detects its own failure (throwaway tests, Flux suspended, reverted
    afterwards):
-   - ml-api scaled to 0: `predict-availability` rises above 0.
+   - ml-api: no availability test; its code can't produce a counted error
+     (see "ml-api counts no errors").
    - `CONN_RETURN_MODE=hold` on backend-api: `process-availability` rises
      above 0. Each pod keeps every connection, its pool (10) runs out and
      `/process` returns 503. `/ready` then fails too and the pods leave the
@@ -274,16 +254,12 @@ chart's 20Gi (devops-cs stays at 5Gi).
 
 ## Known limits
 
-- backend-api availability is measured by the server. Requests that never
-  reach a pod (all pods down, refused connections) are not counted. The
-  existing `GET /ready` probe stays a separate signal.
-- ml-api availability is sampled: 2 probes a minute, so a blip shorter than
-  30 s can be missed. It measures what the probe experiences; a problem that
-  hits only real traffic stays hidden behind successful probes (the workbook's
-  warning about synthetic traffic).
+- Availability is measured by the apps. Requests that never reach a pod (all
+  pods down, refused connections) are not counted; the default pod and
+  deployment alerts cover that.
+- ml-api's availability SLI reads 0 errors until the app records failure
+  statuses (see "ml-api counts no errors").
 - Latency SLIs include failed requests; the histograms have no `status` label.
-  ml-api's latency SLI also includes the probe requests, about 11% of
-  `/predict` traffic.
 - `backend_api_db_*` and `ml_api_memory_bytes` describe causes, not user
   experience; they are for diagnosis and dashboards, not SLIs.
 - Sloth's 30-day SLI is the average of 5-minute ratios, not total bad events

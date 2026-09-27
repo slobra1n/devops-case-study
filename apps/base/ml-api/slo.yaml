@@ -1,5 +1,6 @@
-# SLIs of ml-api. The Sloth controller (infrastructure/base/monitoring/sloth.yaml)
-# generates the rules from this: PrometheusRule "ml-api", converted to VMRule "ml-api".
+# SLIs of ml-api, from ml-api's own metrics. The Sloth controller
+# (infrastructure/base/monitoring/sloth.yaml) generates the rules from this:
+# PrometheusRule "ml-api", converted to VMRule "ml-api".
 apiVersion: sloth.slok.dev/v1
 kind: PrometheusServiceLevel
 metadata:
@@ -14,10 +15,10 @@ spec:
       objective: 99 # 30-day target; chosen 2026-09-27
       sli:
         events:
-          errorQuery: |
-            sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
-            - sum(sum_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
-          totalQuery: sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
+          # The /predict handler has no error path and only counts status 200,
+          # so this reads 0 errors until ml-api counts its failures.
+          errorQuery: sum(increase(ml_api_requests_total{endpoint="/predict",status=~"5.."}[{{.window}}])) or vector(0)
+          totalQuery: sum(increase(ml_api_requests_total{endpoint="/predict"}[{{.window}}]))
     - name: predict-latency
       alerting:
         name: MlApiPredictLatency

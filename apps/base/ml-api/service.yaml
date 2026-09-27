@@ -5,9 +5,6 @@ metadata:
   namespace: ml-api
   labels:
     app: ml-api
-  annotations:
-    # Checked by the shared app-endpoints probe (monitoring).
-    operator.victoriametrics.com/probe-path: /health
 spec:
   selector:
     app: ml-api
