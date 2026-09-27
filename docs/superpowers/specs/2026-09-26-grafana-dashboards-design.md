@@ -15,17 +15,19 @@ alerts, not by watching a board.
 - **Grafana:** from the existing `victoria-metrics-k8s-stack` HelmRelease
   (`grafana.enabled: true`, Grafana 13.1.1), with the chart's data sources:
   `VictoriaMetrics` (Prometheus type, uid `VictoriaMetrics`, default) and
-  `Alertmanager`. No VictoriaMetrics Grafana plugin: Grafana would download it
-  from the internet at every start.
+  `Alertmanager`, plus `VictoriaLogs` since 2026-09-27
+  ([logging spec](2026-09-27-logging-design.md)). No VictoriaMetrics metrics
+  plugin: the Prometheus type covers the dashboards.
 - **Stateless:** no persistent volume (the chart's default `emptyDir`). Every
   dashboard is provisioned (from git, or for Sloth's two from grafana.com) and
   can't be saved from the UI, so a restart loses nothing.
-- **Runtime downloads: only Sloth's two dashboards** (below).
-  `defaultDashboards.enabled: false` (already set), so the chart's sync job
-  (on since 2026-09-27 for the default alert rules) syncs no dashboards, and Grafana's
-  `plugins.preinstall_disabled: true`. Grafana 13 otherwise downloads six
-  plugins at every start (drilldown apps, extra data sources); the dashboards
-  use only built-in panels and the Prometheus data source.
+- **Runtime downloads: Sloth's two dashboards** (below) **and the VictoriaLogs
+  data source plugin** (logging spec). `defaultDashboards.enabled: false`, so
+  the chart's sync job (on since 2026-09-27 for the default alert rules) syncs
+  no dashboards. Grafana 13's six default plugins (drilldown apps, extra data
+  sources) are listed in `plugins.disable_plugins`; otherwise it downloads them
+  at every start. (Until 2026-09-27 `plugins.preinstall_disabled: true`, which
+  also blocks any plugin we want.)
 - **Delivery:** dashboard JSON files in git, turned into ConfigMaps by
   Kustomize's `configMapGenerator`, loaded by the chart's Grafana sidecar.
   Exception: Sloth's two dashboards come from grafana.com by ID and revision
@@ -78,7 +80,8 @@ grafana:
   enabled: true
   grafana.ini:
     plugins:
-      preinstall_disabled: true
+      disable_plugins: grafana-lokiexplore-app,grafana-pyroscope-app,grafana-exploretraces-app,grafana-metricsdrilldown-app,elasticsearch,zipkin
+      preinstall: victoriametrics-logs-datasource@0.32.0   # logging spec
   sidecar:
     dashboards:
       folderAnnotation: grafana_folder

@@ -136,6 +136,18 @@ so there was no way to order them.
   channel's webhook URL or password must not be added like that: encrypt
   Secrets with SOPS + age (Flux decrypts them natively) first.
 
+## Change 9: logs
+
+- VictoriaLogs from the same VictoriaMetrics chart: VLAgent on every node reads
+  every container's log, VLSingle stores it for a month (chart defaults). One
+  vendor, one operator, no second stack.
+- Logs are viewed in Grafana (Explore, data source `VictoriaLogs`) and in
+  VictoriaLogs' own UI. The Grafana plugin is downloaded from grafana.com at
+  every Grafana start, in the background: without internet Grafana still
+  starts, only the logs data source is missing.
+- Alerts only on the logging stack's own health (published rules, pinned); no
+  alerts on log content.
+
 ## Where things live
 
 | I want to… | Go to |
@@ -151,6 +163,7 @@ so there was no way to order them.
 | Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`, listed in the app's `kustomization.yaml`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
 | Change an alert rule | SLO alerts: `apps/base/<app>/slo.yaml` (target) and `infrastructure/base/monitoring/sloth.yaml` (plugin chain). Platform alerts: `defaultRules` in `helmrelease.yaml` (pinned sources; `rules.<AlertName>.enabled: false` to switch one off, per cluster in the overlay) |
 | Change where alerts go | `alertmanager.config` in `helmrelease.yaml` (routes, receivers, inhibition) |
+| Search logs | Grafana → Explore → `VictoriaLogs`, or `kubectl -n monitoring port-forward svc/vlsingle-victoria-metrics-k8s-stack 9428` and `http://localhost:9428/select/vmui` |
 
 ## Known issue: backend 500s after a restart
 

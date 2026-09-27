@@ -24,6 +24,7 @@ notification leaves the cluster yet.
 | VictoriaMetrics `alerts-health`, `alerts-vmagent`, `alerts-vmalert`, `alerts-single-node` | `v1.152.0` | VictoriaMetrics components, disk running out |
 | VictoriaMetrics operator `vmoperator-rules` | `v0.74.1` | operator errors |
 | monitoring-mixins `postgres-exporter/alerts.yaml` (extra source) | commit `50c46fcb` | postgres down, connections, deadlocks |
+| VictoriaLogs `alerts-health`, `alerts-vlagent`, `alerts-vlogs` | `v1.52.0` | VictoriaLogs and VLAgent ([logging spec](2026-09-27-logging-design.md)) |
 
   The chart already skips the groups of components k3s doesn't expose (API
   server, scheduler, controller-manager, etcd scrapes are off). Adaptations,
@@ -71,8 +72,9 @@ notification leaves the cluster yet.
 ## Acceptance criteria
 
 1. All Flux Kustomizations and HelmReleases Ready; the sync-job Job completed.
-2. vmalert: 31 default groups (158 alerts, 53 recording rules) plus the Sloth
-   rules (60 recording, 8 alerts), no rule errors.
+2. vmalert: 34 default groups (179 alerts, 53 recording rules, including
+   VictoriaLogs' 3 groups) plus the Sloth rules (60 recording, 8 alerts), no
+   rule errors.
 3. While healthy, only `Watchdog` (→ `watchdog`) and `InfoInhibitor` (→
    `null`) fire; info-level alerts are silenced by `InfoInhibitor`.
 4. `amtool config routes test`: Watchdog → `watchdog`, Sloth page → `page`,

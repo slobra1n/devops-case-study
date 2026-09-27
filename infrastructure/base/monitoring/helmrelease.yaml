@@ -26,14 +26,18 @@ spec:
         enable_converter_ownership: true
     # Dashboards come from ConfigMaps in git (dashboards/); the sidecar puts each
     # into the folder its grafana_folder annotation names. No persistence: every
-    # dashboard is provisioned, so a restart loses nothing. Grafana's
-    # preinstalled plugins (drilldown apps, extra data sources) are off; the
-    # dashboards use only built-in panels and Prometheus.
+    # dashboard is provisioned, so a restart loses nothing. Grafana 13's six
+    # default plugins (drilldown apps, extra data sources) are disabled; the one
+    # plugin installed is VictoriaLogs' data source, pinned, in the background
+    # after start: without grafana.com Grafana still starts, only the logs data
+    # source is missing until the next start. (The chart's `plugins` value
+    # would install it before start, and Grafana then fails to start offline.)
     grafana:
       enabled: true
       grafana.ini:
         plugins:
-          preinstall_disabled: true
+          disable_plugins: grafana-lokiexplore-app,grafana-pyroscope-app,grafana-exploretraces-app,grafana-metricsdrilldown-app,elasticsearch,zipkin
+          preinstall: victoriametrics-logs-datasource@0.32.0
       sidecar:
         dashboards:
           folderAnnotation: grafana_folder
@@ -169,11 +173,35 @@ spec:
         # Not a chart default: the postgres-exporter mixin's published alerts.
         postgres-exporter:
           url: https://raw.githubusercontent.com/monitoring-mixins/website/50c46fcbdb18d37ba036dbf0de55648eb947348b/assets/postgres-exporter/alerts.yaml
+        # VictoriaLogs and VLAgent health, at the version the chart runs (v1.52.0).
+        vlhealth:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/v1.52.0/deployment/docker/rules/alerts-health.yml
+        vlagent:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/v1.52.0/deployment/docker/rules/alerts-vlagent.yml
+        victorialogs:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/v1.52.0/deployment/docker/rules/alerts-vlogs.yml
     defaultDashboards:
       enabled: false
     # Runs the rule download above; if GitHub is unreachable, the Helm upgrade
     # fails and is retried. Rules it no longer generates are deleted.
     syncJob:
+      enabled: true
+    # Grafana data sources beyond the chart's. VictoriaLogs is listed here, not
+    # in defaultDatasources.victorialogs: the chart adds that one only together
+    # with its `plugins` install, which blocks Grafana's start without internet.
+    defaultDatasources:
+      extra:
+        - name: VictoriaLogs
+          uid: VictoriaLogs
+          type: victoriametrics-logs-datasource
+          access: proxy
+          url: http://vlsingle-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:9428
+    # Logs (docs/superpowers/specs/2026-09-27-logging-design.md): VLAgent runs
+    # on every node and ships every container's log to VLSingle. Chart
+    # defaults: retention one month (31 days), 20Gi volume.
+    vlsingle:
+      enabled: true
+    vlagent:
       enabled: true
     prometheus-node-exporter:
       enabled: true

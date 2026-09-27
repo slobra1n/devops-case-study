@@ -44,7 +44,8 @@ Namespace: `monitoring`.
 | node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
 | vmalert, Alertmanager | on | Evaluate the SLO rules and the platform alerts and route them to `page` and `ticket` receivers without integrations ([alerting spec](2026-09-27-alerting-design.md)) |
 | Sloth controller, `PrometheusRule` CRD | on | Generate the SLO rules from each app's `PrometheusServiceLevel`; the operator converts them into `VMRule`s ([SLO spec](2026-09-26-slo-sli-design.md)) |
-| Grafana | on | Dashboards provisioned from git, no persistence; the two Sloth dashboards are downloaded from grafana.com at startup, nothing else is ([dashboards spec](2026-09-26-grafana-dashboards-design.md)) |
+| Grafana | on | Dashboards provisioned from git, no persistence; only the two Sloth dashboards and the VictoriaLogs data source plugin are downloaded from grafana.com at startup ([dashboards spec](2026-09-26-grafana-dashboards-design.md)) |
+| VLSingle, VLAgent | on | Every container's log, searchable in Grafana and VictoriaLogs' UI ([logging spec](2026-09-27-logging-design.md)) |
 | Default rules (sync job) | on | The chart's published platform alerts, downloaded by its sync job at every Helm upgrade from sources pinned to the running versions ([alerting spec](2026-09-27-alerting-design.md)) |
 | Default dashboards | off | Dashboards come from this repo (the Sloth dashboards: pinned grafana.com revisions named in the HelmRelease) |
 | controller-manager, scheduler, etcd scrapes | off | k3s runs them inside its one process and serves no separate endpoints (10257/10259 aren't listening). Their metrics come through the kubelet `/metrics` scrape |
