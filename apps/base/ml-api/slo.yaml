@@ -1,25 +1,30 @@
-# SLIs of ml-api for Sloth. Not a Kubernetes object: not in kustomization.yaml.
-# After editing, run scripts/slo-generate.sh and commit both files.
-version: prometheus/v1
-service: ml-api
-slos:
-  - name: predict-availability
-    alerting:
-      name: MlApiPredictAvailability # used once alert rules are generated
-    objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
-    sli:
-      events:
-        error_query: |
-          sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
-          - sum(sum_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
-        total_query: sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
-  - name: predict-latency
-    alerting:
-      name: MlApiPredictLatency # used once alert rules are generated
-    objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
-    sli:
-      events:
-        error_query: |
-          sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
-          - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[{{.window}}]))
-        total_query: sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
+# SLIs of ml-api. The Sloth controller (infrastructure/base/monitoring/sloth.yaml)
+# generates the rules from this: PrometheusRule "ml-api", converted to VMRule "ml-api".
+apiVersion: sloth.slok.dev/v1
+kind: PrometheusServiceLevel
+metadata:
+  name: ml-api
+  namespace: ml-api
+spec:
+  service: ml-api
+  slos:
+    - name: predict-availability
+      alerting:
+        name: MlApiPredictAvailability # used once alert rules are generated
+      objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
+      sli:
+        events:
+          errorQuery: |
+            sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
+            - sum(sum_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
+          totalQuery: sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
+    - name: predict-latency
+      alerting:
+        name: MlApiPredictLatency # used once alert rules are generated
+      objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
+      sli:
+        events:
+          errorQuery: |
+            sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
+            - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[{{.window}}]))
+          totalQuery: sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))

@@ -22,15 +22,18 @@ targets later means the steps under "When targets are chosen".
   Grafana dashboards are built for, so they run unedited. (Until 2026-09-27
   this was the workbook's 4 weeks, "Choosing an Appropriate Time Window",
   which needed edited dashboards.)
-- **Generator:** [Sloth](https://github.com/slok/sloth) v0.16.0, run as a CLI
-  from its pinned container image on a developer machine. Its output is
-  committed as `VMRule` objects, so the cluster only runs VictoriaMetrics-native
-  objects and reviewers see the exact rules in git. Rejected: Sloth's
-  Kubernetes controller (needs Prometheus-operator CRDs, rules not visible in
-  git) and hand-written rules (a home-made Sloth to maintain).
+- **Generator:** [Sloth](https://github.com/slok/sloth) v0.16.0 as a
+  Kubernetes controller. Each app ships a `PrometheusServiceLevel` object with
+  its manifests; the controller turns it into a `PrometheusRule`, and the
+  VictoriaMetrics operator converts that into a `VMRule` for vmalert. No
+  generation step, no generated files in git, and it scales to many services
+  pushed from a monorepo. (Until 2026-09-27 the Sloth CLI generated `VMRule`
+  files that were committed; that needed a manual run and a drift check.)
+  Rejected: hand-written rules (a home-made Sloth to maintain).
 - **Common vs per app:** everything shared lives in one place
-  (`scripts/slo-generate.sh`: Sloth version, window, validator, plugin chain;
-  the blackbox probe module). Each app only defines its SLIs in its own
+  (`infrastructure/base/monitoring/sloth.yaml`: Sloth version, window,
+  validator, plugin chain; the blackbox probe module in
+  `blackbox-exporter.yaml`). Each app only defines its SLIs in its own
   `slo.yaml`.
 - **Targets later:** Sloth requires an `objective` and an `alerting.name` on
   every SLO, even when it generates no alerts. Each SLO carries
@@ -124,57 +127,75 @@ config:
 The backend is not probed: each `POST /process` inserts a row into
 `documents`.
 
-## Generation with Sloth
+## Generation with the Sloth controller
 
 ```
-scripts/
-  slo-generate.sh          common: Sloth image v0.16.0, Sloth's default 30d period, VM validator,
-                           SLI and metadata rules; writes VMRules
 infrastructure/base/monitoring/
+  sloth.yaml               Sloth controller v0.16.0 (default 30d period, VM validator,
+                           SLI and metadata rules) and the PrometheusRule CRD
+  helmrelease.yaml         converter owner references on; waits for the CRD
   blackbox-exporter.yaml   adds the http_post_2xx module
 apps/base/backend-api/
-  slo.yaml                 Sloth spec (not a Kubernetes object, not in kustomization.yaml)
-  slo-rules.yaml           generated VMRule "backend-api-slo", do not edit; in kustomization.yaml
+  slo.yaml                 PrometheusServiceLevel "backend-api"
 apps/base/ml-api/
-  slo.yaml, slo-rules.yaml (VMRule "ml-api-slo")
+  slo.yaml                 PrometheusServiceLevel "ml-api"
   vmprobe.yaml             VMProbe "predict", the source of predict-availability
+clusters/devops-cs/
+  apps.yaml                health check for PrometheusServiceLevel
 ```
 
-`scripts/slo-generate.sh`:
+The chain from an SLO to vmalert:
 
-- Finds every `apps/base/*/slo.yaml` and runs, for each:
-  `docker run --rm --interactive ghcr.io/slok/sloth:v0.16.0 generate -i /dev/stdin
-  --disable-default-slo-plugins
-  -s '{"id":"sloth.dev/contrib/validate_victoria_metrics/v1"}'
-  -s '{"id":"sloth.dev/core/sli_rules/v1"}'
-  -s '{"id":"sloth.dev/core/metadata_rules/v1"}' < slo.yaml`. The validator rejects
-  queries that are not valid MetricsQL. The spec goes in on stdin because
-  Docker Desktop's bind mounts briefly miss a file an editor saved by replacing it.
-- Wraps Sloth's rule groups into a `VMRule` named `<folder>-slo` in the
-  namespace named like the folder (both apps use their folder name as
-  namespace), and writes it to `slo-rules.yaml` with a "generated, do not
-  edit" header.
-- Drift check (no CI; run it before committing):
-  `scripts/slo-generate.sh && git diff --exit-code -- 'apps/base/*/slo-rules.yaml'`.
-  Sloth's output is deterministic, so any diff means a stale `slo-rules.yaml`.
+1. Flux applies `slo.yaml` (a `PrometheusServiceLevel`) with the app.
+2. The Sloth controller generates the rules and writes a `PrometheusRule` with
+   the same name and namespace, owned by the `PrometheusServiceLevel`. Its
+   plugin chain is set once, as controller arguments (a post-renderer in
+   `sloth.yaml`, the chart has no values for it): `--disable-default-slo-plugins`,
+   then `sloth.dev/contrib/validate_victoria_metrics/v1`, which rejects queries
+   that are not valid MetricsQL, `sloth.dev/core/sli_rules/v1` and
+   `sloth.dev/core/metadata_rules/v1`.
+3. The VictoriaMetrics operator converts the `PrometheusRule` into a `VMRule`
+   of the same name. `enable_converter_ownership` makes the `PrometheusRule` its
+   owner; without it, deleting an SLO would leave its rules running. The
+   operator only converts kinds whose CRD exists when it starts, so the stack's
+   HelmRelease `dependsOn` the CRD release.
+
+Only the `PrometheusRule` CRD of prometheus-operator is installed (chart
+`prometheus-operator-crds`, every other CRD off). The Sloth chart's `commonPlugins`
+(a git-sync sidecar pulling unpinned plugins from GitHub) and its `PodMonitor`
+are off.
+
+**Errors show in Flux.** Sloth's status has counters and a
+`promOpRulesGenerated` flag but no conditions, and it sets `observedGeneration`
+on failure too. Flux's default health check would call a failed SLO Ready. The
+`apps` Kustomization therefore has `healthCheckExprs` for
+`PrometheusServiceLevel`: in progress until Sloth has seen the current
+generation, failed if `promOpRulesGenerated` is false, ready if it is true.
+`kubectl get prometheusservicelevels -A` shows the same (`GEN OK`).
 
 Sloth generates 8 recording rules per SLO, `slo:sli_error:ratio_rate{5m,30m,1h,2h,6h,1d,3d,30d}`,
 labelled `sloth_id`, `sloth_service`, `sloth_slo` and `sloth_window`. These are
 the windows the workbook's multiwindow, multi-burn-rate alerts need. The `30d`
-rule is the average of the 5-minute ratios over 30 days.
+rule is the average of the 5-minute ratios over 30 days. The rules are the
+same as the CLI's; only `sloth_slo_info`'s `sloth_mode` and `sloth_spec` labels
+differ.
 
-Workflow: edit `slo.yaml`, run the script, commit both files. Flux applies
-apps after infrastructure, so the `VMRule` and `VMProbe` CRDs exist first.
+Workflow: edit `slo.yaml` and commit. Flux applies apps after infrastructure,
+so the `PrometheusServiceLevel`, `VMRule` and `VMProbe` CRDs exist first. With
+services in a monorepo, its CI can check `slo.yaml` files before merge with
+the same image: `sloth validate -i <dir> -n 'slo\.yaml$'` plus the plugin
+arguments above.
 
 When targets are chosen: set `objective` in each `slo.yaml`, and add
-`sloth.dev/core/alert_rules/v1` to the plugin chain in the script. Every SLO
+`sloth.dev/core/alert_rules/v1` to the plugin chain in `sloth.yaml`. Every SLO
 then gets the workbook's page and ticket alerts (Sloth's default `google-30d` windows:
 page 1 h/5 m and 6 h/30 m, ticket 1 d/2 h and 3 d/6 h), labelled
 `sloth_severity=page|ticket`, which the Alertmanager routes below already
 handle.
 
-SLOs are defined once in `base`; every cluster gets the same SLOs. Per-cluster
-SLO overrides are not built.
+SLOs are defined once in `base`; every cluster gets the same SLOs. A cluster
+that needs another objective patches the `objective` field of the
+`PrometheusServiceLevel` in its overlay.
 
 ## Runtime
 
@@ -238,7 +259,8 @@ chart's 20Gi (devops-cs stays at 5Gi).
 ## Acceptance criteria
 
 1. `flux get kustomizations` and `flux get helmreleases -A` show all Ready.
-   `VMRule` `backend-api-slo` and `ml-api-slo`, `VMProbe` `predict` and the
+   `PrometheusServiceLevel` `backend-api` and `ml-api` show `GEN OK` true, their
+   `VMRule`s `backend-api` and `ml-api`, `VMProbe` `predict` and the
    `VMAlertmanager` report operational. vmalert reports no rule evaluation
    errors. The target `probe/ml-api/predict` is up.
 2. `slo:sli_error:ratio_rate5m` has exactly one series per SLO (4), and
@@ -253,8 +275,9 @@ chart's 20Gi (devops-cs stays at 5Gi).
      Service; the 503s before that are enough. Postgres is untouched.
    - `RESPONSE_OVERHEAD_MS=1000` on ml-api: `predict-latency` rises above 0.
    - `QUERY_OVERHEAD_MS=300` on backend-api: `process-latency` rises above 0.
-4. The drift check passes; it fails after editing a `slo.yaml` without
-   regenerating, and passes again after regenerating.
+4. A `PrometheusServiceLevel` with invalid MetricsQL fails the `apps`
+   Kustomization's health check; deleting a `PrometheusServiceLevel` deletes
+   its `PrometheusRule` and `VMRule`.
 5. VMSingle on devops-cs runs with the chart's `retentionPeriod: "1"` (31 days) and still requests
    `5Gi`.
 6. Synthetic alerts sent to Alertmanager: a `sloth_severity="page"` alert
@@ -283,7 +306,8 @@ chart's 20Gi (devops-cs stays at 5Gi).
 - No notification leaves the cluster.
 - The server-side queries rely on MetricsQL's `increase`; Prometheus'
   `increase` would drop a new series' first value again.
-- The drift check only runs when someone runs it; there is no CI.
+- The generated rules are not in git; `kubectl get vmrule -n <app> <app> -o yaml`
+  shows them. A Sloth upgrade regenerates every SLO's rules in the cluster.
 
 ## Out of scope
 

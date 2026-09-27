@@ -15,3 +15,11 @@ spec:
   path: ./apps/devops-cs
   prune: true
   wait: true
+  # Sloth's status has no conditions, so by default Flux would count a failed
+  # generation as Ready. These report the real result of each SLO object.
+  healthCheckExprs:
+    - apiVersion: sloth.slok.dev/v1
+      kind: PrometheusServiceLevel
+      inProgress: status.observedGeneration != metadata.generation
+      failed: "!status.promOpRulesGenerated"
+      current: status.promOpRulesGenerated

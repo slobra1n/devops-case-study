@@ -4,6 +4,10 @@ metadata:
   name: victoria-metrics-k8s-stack
   namespace: monitoring
 spec:
+  # The operator only converts PrometheusRules (from Sloth, sloth.yaml) if the
+  # CRD exists when it starts.
+  dependsOn:
+    - name: prometheus-operator-crds
   interval: 10m
   chart:
     spec:
@@ -15,6 +19,11 @@ spec:
   upgrade:
     crds: CreateReplace
   values:
+    # Converted VMRules get an owner reference to their PrometheusRule, so
+    # deleting an SLO also deletes its rules (default: they are left running).
+    victoria-metrics-operator:
+      operator:
+        enable_converter_ownership: true
     # Dashboards come from ConfigMaps in git (dashboards/); the sidecar puts each
     # into the folder its grafana_folder annotation names. No persistence: every
     # dashboard is provisioned, so a restart loses nothing. Grafana's

@@ -43,6 +43,7 @@ Namespace: `monitoring`.
 | Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks ml-api `/health` and backend-api `/ready` through their Services, like a client; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
 | node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
 | vmalert, Alertmanager | on | Evaluate the SLO recording rules and route future alerts to `page` and `ticket` receivers without integrations ([SLO spec](2026-09-26-slo-sli-design.md)) |
+| Sloth controller, `PrometheusRule` CRD | on | Generate the SLO rules from each app's `PrometheusServiceLevel`; the operator converts them into `VMRule`s ([SLO spec](2026-09-26-slo-sli-design.md)) |
 | Grafana | on | Dashboards provisioned from git, no persistence; the two Sloth dashboards are downloaded from grafana.com at startup, nothing else is ([dashboards spec](2026-09-26-grafana-dashboards-design.md)) |
 | Default rules, default dashboards, dashboard sync job | off | Rules and dashboards come from this repo (the Sloth dashboards: pinned grafana.com revisions named in the HelmRelease) |
 | controller-manager, scheduler, etcd scrapes | off | k3s runs them inside its one process and serves no separate endpoints (10257/10259 aren't listening). Their metrics come through the kubelet `/metrics` scrape |

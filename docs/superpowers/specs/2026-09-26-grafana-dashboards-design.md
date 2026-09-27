@@ -132,7 +132,8 @@ Kustomize).
 | High level Sloth SLOs | grafana.com 14643, revision 2 | every SLO's burn rate, SLOs burning now, budget remaining |
 | SLO / Detail | grafana.com 14348, revision 5 | per SLO: SLI vs objective, current burn rate, budget remaining (30-day window and calendar month), month burn chart, burn-rate heatmap, page/ticket alert state |
 
-**Rules they need:** `scripts/slo-generate.sh` adds
+**Rules they need:** the Sloth controller's plugin chain
+(`infrastructure/base/monitoring/sloth.yaml`) has
 `sloth.dev/core/metadata_rules/v1` after `sli_rules`. Per SLO it adds 7
 recording rules: `slo:objective:ratio`, `slo:error_budget:ratio`,
 `slo:time_period:days` (30), `slo:current_burn_rate:ratio` (5m window),

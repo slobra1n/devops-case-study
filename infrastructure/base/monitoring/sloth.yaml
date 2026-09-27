@@ -1,0 +1,91 @@
+# Sloth controller: turns each PrometheusServiceLevel (apps/base/<app>/slo.yaml)
+# into a PrometheusRule; the VictoriaMetrics operator converts that into a VMRule
+# for vmalert (helmrelease.yaml). Everything shared by all SLOs is set here:
+# Sloth version, Sloth's default 30-day period (the upstream Sloth dashboards
+# assume it), MetricsQL validation, and the plugin chain (SLI recording rules
+# plus the metadata rules the dashboards read; no alert rules yet).
+#
+# Only the PrometheusRule CRD from prometheus-operator: Sloth writes it and the
+# VictoriaMetrics operator converts it. The operator only watches CRDs that
+# exist when it starts, so the stack depends on this release (helmrelease.yaml).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus-operator-crds
+  namespace: monitoring
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: prometheus-operator-crds
+      version: "32.0.1"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community # blackbox-exporter.yaml
+  values:
+    crds:
+      alertmanagerconfigs: {enabled: false}
+      alertmanagers: {enabled: false}
+      podmonitors: {enabled: false}
+      probes: {enabled: false}
+      prometheusagents: {enabled: false}
+      prometheuses: {enabled: false}
+      scrapeconfigs: {enabled: false}
+      servicemonitors: {enabled: false}
+      thanosrulers: {enabled: false}
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: sloth
+  namespace: monitoring
+spec:
+  interval: 24h
+  url: https://slok.github.io/sloth
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: sloth
+  namespace: monitoring
+spec:
+  interval: 10m
+  dependsOn:
+    - name: prometheus-operator-crds
+  chart:
+    spec:
+      chart: sloth
+      version: "0.16.0" # Sloth v0.16.0
+      sourceRef:
+        kind: HelmRepository
+        name: sloth
+  upgrade:
+    crds: CreateReplace
+  values:
+    # Off: a git-sync sidecar pulling unpinned SLI plugins from GitHub.
+    commonPlugins:
+      enabled: false
+    # Off: needs the PodMonitor CRD. SLO generation failures show in Flux
+    # instead (healthCheckExprs in clusters/<cluster>/apps.yaml).
+    metrics:
+      enabled: false
+  # The chart has no values for the plugin chain.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: sloth
+            patch: |
+              - op: add
+                path: /spec/template/spec/containers/0/args/-
+                value: --disable-default-slo-plugins
+              - op: add
+                path: /spec/template/spec/containers/0/args/-
+                value: --slo-plugins={"id":"sloth.dev/contrib/validate_victoria_metrics/v1"}
+              - op: add
+                path: /spec/template/spec/containers/0/args/-
+                value: --slo-plugins={"id":"sloth.dev/core/sli_rules/v1"}
+              - op: add
+                path: /spec/template/spec/containers/0/args/-
+                value: --slo-plugins={"id":"sloth.dev/core/metadata_rules/v1"}

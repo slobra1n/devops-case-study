@@ -83,6 +83,25 @@ so there was no way to order them.
 - No tool generates a dashboard per SLO outside Grafana Cloud; Sloth and Pyrra
   both ship generic dashboards that find every SLO by its labels.
 
+## Change 6: Sloth controller instead of the Sloth CLI
+
+- Running the Sloth CLI by hand and committing its output doesn't scale:
+  imagine hundreds of microservices in a monorepo pushing to this GitOps repo.
+  Every SLO change would need a generation step, and every Sloth upgrade a
+  commit touching every service's rules.
+- So: the Sloth controller runs in the cluster. Each app ships its SLOs as a
+  `PrometheusServiceLevel` (`apps/base/<app>/slo.yaml`) next to its other
+  manifests; nothing is generated or committed by hand. Sloth version, period
+  and plugin chain are set once, in `infrastructure/base/monitoring/sloth.yaml`.
+- Sloth writes `PrometheusRule`s (prometheus-operator's kind), and the
+  VictoriaMetrics operator converts them into `VMRule`s. That needs the
+  `PrometheusRule` CRD (only that one) and the operator's owner references, so
+  deleting an SLO also deletes its rules.
+- Sloth's status has no conditions, so Flux would call a failed SLO Ready. The
+  `apps` Kustomization checks Sloth's `promOpRulesGenerated` flag instead.
+- Trade-off, accepted: the generated rules are no longer in git (like the Helm
+  charts, which Flux also renders in the cluster).
+
 ## Where things live
 
 | I want to… | Go to |
@@ -95,6 +114,7 @@ so there was no way to order them.
 | Add a new top-level layer folder | Also add `!/<folder>` to `.sourceignore`; Flux only downloads the folders listed there (the `databases/` layer was missing at first: "kustomization path not found") |
 | Add or change a dashboard | `infrastructure/base/monitoring/dashboards/`: the JSON file plus one `configMapGenerator` entry in its `kustomization.yaml`. Sloth's SLO dashboards: grafana.com ID and revision in `helmrelease.yaml` (`grafana.dashboards`) |
 | Use a different dashboard on one cluster | `infrastructure/<cluster>/monitoring/kustomization.yaml`: a `configMapGenerator` entry with the dashboard's name, `namespace: monitoring`, `behavior: replace` and a file with the same name |
+| Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`, listed in the app's `kustomization.yaml`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
 
 ## Known issue: backend 500s after a restart
 
