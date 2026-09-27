@@ -158,7 +158,7 @@
       "id": 3,
       "type": "timeseries",
       "title": "Errors",
-      "description": "Share of POST /predict requests answered with a 5xx status. The dashed line is the error budget of the 99% availability SLO (1%); SLO / Detail shows the burn rate. ml-api counts every request as 200 (known issue in TEMP-NOTES.md), so this stays 0 until the app records its real status.",
+      "description": "Share of POST /predict requests answered with a 5xx status. The dashed line is the error budget of the 99% availability SLO (1%); SLO / Detail shows the burn rate. ml-api counts every request as 200 (known issue in README.md), so this stays 0 until the app records its real status.",
       "datasource": {
         "type": "prometheus",
         "uid": "VictoriaMetrics"

@@ -1,4 +1,13 @@
-# Step 0 findings — inspection recorded; backend defect unresolved
+# Step 0 findings: environment inspection, 2026-09-25
+
+> **Status (2026-09-27):** this is the inspection record as of 2026-09-25,
+> kept unchanged below. Since then Step 0 is closed and the monitoring layer
+> is built (see the [README](../../README.md)). The missing `documents` table
+> has a known cause: backend-api creates it only at startup and ignores
+> errors, and postgres loses its data on every restart (`emptyDir`). The fix
+> belongs in the app; the README's "Known issues" has the workaround. The
+> layout has changed too: postgres now lives in `databases/`, and the Flux
+> Kustomizations are `infrastructure`, `databases` and `apps`.
 
 ## Environment and revisions
 

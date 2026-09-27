@@ -205,7 +205,7 @@ kube-prometheus Namespace (Pods) board for its namespace, and its logs in
 Explore (VictoriaLogs, `kubernetes.pod_namespace:=<app>`), all for the
 board's time range. A `SLOs` dropdown links the two Sloth boards. ml-api's
 Errors panel stays 0 until ml-api counts its failures (known issue in
-`TEMP-NOTES.md`).
+`README.md`).
 
 ## Drill-downs (folder `Components`)
 
@@ -319,7 +319,7 @@ the kube-prometheus boards refresh every 10 s and have no panel descriptions
   choosing targets later means setting `objective` and adding
   `sloth.dev/core/alert_rules/v1`. "Dashboards" leaves its scope and
   out-of-scope lines.
-- `TEMP-NOTES.md`: where dashboards live and how to override one per cluster.
+- `README.md` (was `TEMP-NOTES.md`): where dashboards live and how to override one per cluster.
 
 ## Acceptance criteria
 
