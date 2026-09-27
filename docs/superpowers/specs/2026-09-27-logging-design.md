@@ -33,10 +33,13 @@ Grafana and in VictoriaLogs' own UI, from the same VictoriaMetrics stack.
     `plugins` value, which installs before start, and then Grafana doesn't
     start at all without internet (tested). The data source is therefore
     listed in `defaultDatasources.extra`.
-    The apps log plain text such as `INFO:     ...`, with no level field, so
-    the data source has log level rules (`jsonData.logLevelRules`) that take
-    the level from that prefix. A `level` field, as in Flux's JSON logs, wins
-    over the rules.
+    Most containers log plain text without a level field, so the data source
+    has log level rules (`jsonData.logLevelRules`): one regex per level that
+    matches the level word in each format we run (Python/uvicorn, logfmt,
+    VictoriaMetrics, postgres, coredns, klog, logrus). A `level` field, as in
+    Flux's JSON logs, wins over the rules. VictoriaLogs has no built-in
+    detection for plain text (open upstream: VictoriaLogs #1809, #1532; vlagent
+    transformations in PR #1508 would let the agent set the level instead).
   - VictoriaLogs' built-in UI: `kubectl -n monitoring port-forward
     svc/vlsingle-victoria-metrics-k8s-stack 9428` and
     `http://localhost:9428/select/vmui`.
@@ -53,7 +56,8 @@ Grafana and in VictoriaLogs' own UI, from the same VictoriaMetrics stack.
    `flux-system` and `monitoring`, with pod, namespace and container fields.
 3. Grafana lists the `VictoriaLogs` data source, the plugin is installed and
    only that plugin; a query through the data source returns log lines, and
-   ml-api and backend-api lines show their level (`INFO`), not `unknown`.
+   only lines without a level word (load-generator, sync-job, tracebacks)
+   show `unknown`.
 4. vmalert loads the VictoriaLogs health groups with no rule errors.
 
 ## Known limits
@@ -61,5 +65,5 @@ Grafana and in VictoriaLogs' own UI, from the same VictoriaMetrics stack.
 - Grafana's logs data source depends on grafana.com at every Grafana start.
 - No log-based alerts; errors in logs are found by searching.
 - Logs are kept one month; older logs are gone.
-- Other plain-text formats (kube-system logfmt, operator console logs,
-  postgres `LOG:`) show level `unknown`; add a rule when one matters.
+- Lines without a level word (load-generator, sync-job, Python tracebacks,
+  postgres `STATEMENT:`) show level `unknown`.

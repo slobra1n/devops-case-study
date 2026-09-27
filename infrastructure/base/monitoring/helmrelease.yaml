@@ -196,16 +196,18 @@ spec:
           type: victoriametrics-logs-datasource
           access: proxy
           url: http://vlsingle-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:9428
-          # Level for plain-text logs. The apps log like Python/uvicorn
-          # ("INFO:     ..."), with no level field, so Grafana showed them as
-          # unknown. A `level` field (JSON logs such as Flux) wins over these.
+          # Level for plain-text logs: one regex per level, first match wins; a
+          # `level` field (JSON logs such as Flux) wins over all of them.
+          # Formats: Python/uvicorn `INFO:`, logfmt `level=info`, VictoriaMetrics
+          # `<tab>info<tab>`, postgres `] LOG:`, coredns `[INFO]`, klog `I0927`,
+          # coloured logrus (sloth). Lines without a level word stay unknown.
           jsonData:
             logLevelRules:
-              - {field: _msg, operator: regex, value: "^CRITICAL:", level: critical}
-              - {field: _msg, operator: regex, value: "^ERROR:", level: error}
-              - {field: _msg, operator: regex, value: "^WARNING:", level: warning}
-              - {field: _msg, operator: regex, value: "^INFO:", level: info}
-              - {field: _msg, operator: regex, value: "^DEBUG:", level: debug}
+              - {field: _msg, operator: regex, level: critical, value: '^CRITICAL:|level=(fatal|FATAL|panic|PANIC)|\t(fatal|panic)\t|\] (FATAL|PANIC):|^F\d{4} |^\x1b\[\d+m(FATA|PANI)'}
+              - {field: _msg, operator: regex, level: error, value: '^ERROR:|level=(error|ERROR)|\terror\t|\] ERROR:|^\[ERROR\]|^E\d{4} |^\x1b\[\d+mERRO'}
+              - {field: _msg, operator: regex, level: warning, value: '^WARNING:|level=(warn|WARN|warning|WARNING)|\twarn\t|\] WARNING:|^\[WARNING\]|^W\d{4} |^\x1b\[\d+mWARN'}
+              - {field: _msg, operator: regex, level: info, value: '^INFO:|level=(info|INFO)|\tinfo\t|\] LOG:|^\[INFO\]|^I\d{4} |^\x1b\[\d+mINFO'}
+              - {field: _msg, operator: regex, level: debug, value: '^DEBUG:|level=(debug|DEBUG)|\tdebug\t|^\[DEBUG\]|^\x1b\[\d+mDEBU'}
     # Logs (docs/superpowers/specs/2026-09-27-logging-design.md): VLAgent runs
     # on every node and ships every container's log to VLSingle. Chart
     # defaults: retention one month (31 days), 20Gi volume.

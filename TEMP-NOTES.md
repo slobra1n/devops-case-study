@@ -145,10 +145,11 @@ so there was no way to order them.
   VictoriaLogs' own UI. The Grafana plugin is downloaded from grafana.com at
   every Grafana start, in the background: without internet Grafana still
   starts, only the logs data source is missing.
-- The apps' logs are plain text (`INFO:     ...`), so Grafana showed every line
-  as level unknown. Level rules on the data source read the level from that
-  prefix. Chosen over Loki: Loki detects levels itself, but needs a second
-  chart and its own agent (Grafana Alloy) just for that.
+- Most logs are plain text, so Grafana showed them as level unknown.
+  VictoriaLogs has no built-in detection for that (open upstream issue), so
+  the data source has one regex per level covering the formats we run. Chosen
+  over Loki: Loki's own detection misses `ERROR:` lines, and it needs a second
+  chart and its own agent (Grafana Alloy).
 - Alerts only on the logging stack's own health (published rules, pinned); no
   alerts on log content.
 
