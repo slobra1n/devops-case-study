@@ -135,6 +135,10 @@ spec:
             job:
               match: apiserver
               value: kubelet
+        # Recording rules only (API server availability); the alerts that
+        # would use them are skipped with the API server scrape.
+        kube-apiserver-availability.rules:
+          enabled: false
       rules:
         # The backend's readiness check (SELECT 1) ends in a rollback every
         # time (the connection pool rolls back on return): 1 rollback per
@@ -201,25 +205,10 @@ spec:
       enabled: false
     kubeEtcd:
       enabled: false
+    # Ready/suspended state of Flux objects as gotk_resource_info, taken from
+    # Flux's official example (only the kinds this repo uses; add others when used):
+    # https://github.com/fluxcd/flux2-monitoring-example/blob/main/monitoring/controllers/kube-prometheus-stack/kube-state-metrics-config.yaml
     kube-state-metrics:
-      # Its own health (the List/Watch error alerts): expose its telemetry port
-      # and scrape it next to the metrics port. The first endpoint repeats the
-      # chart's default (lists are replaced, not merged).
-      selfMonitor:
-        enabled: true
-      vmScrape:
-        spec:
-          endpoints:
-            - port: http
-              honorLabels: true
-              metricRelabelConfigs:
-                - action: labeldrop
-                  regex: (uid|container_id|image_id)
-            - port: metrics
-              honorLabels: true
-      # Ready/suspended state of Flux objects as gotk_resource_info, taken from
-      # Flux's official example (only the kinds this repo uses; add others when used):
-      # https://github.com/fluxcd/flux2-monitoring-example/blob/main/monitoring/controllers/kube-prometheus-stack/kube-state-metrics-config.yaml
       rbac:
         extraRules:
           - apiGroups: [source.toolkit.fluxcd.io, kustomize.toolkit.fluxcd.io, helm.toolkit.fluxcd.io]

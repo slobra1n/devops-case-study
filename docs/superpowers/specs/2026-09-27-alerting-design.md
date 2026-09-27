@@ -31,6 +31,9 @@ notification leaves the cluster yet.
   - `kubernetes-system`: `labelRewrites` `job="apiserver"` → `job="kubelet"`,
     so `KubeClientErrors` reads the API server metrics k3s serves on the
     kubelet's `/metrics`.
+  - `kube-apiserver-availability.rules` off: recording rules only, for the
+    API server SLO alerts that are skipped with the API server scrape. They
+    select `job="apiserver"` and recorded nothing.
   - `PostgresHasTooManyRollbacks` off: every backend `/ready` check (`SELECT 1`)
     ends in a rollback when the pool takes the connection back, 1,620 an hour,
     exactly the `/ready` rate; not an application error.
@@ -38,8 +41,7 @@ notification leaves the cluster yet.
     Docker Desktop VM's kernel clock has no NTP daemon and always reports
     unsynchronised, though it matches the host within milliseconds.
     `NodeClockSkewDetected` still watches the offset.
-  - kube-state-metrics self-monitoring on (`selfMonitor`, second scrape
-    endpoint `metrics`), so its List/Watch error alerts have data.
+
 - **Flux:** Flux's own mechanism, not a PromQL rule: a notification-controller
   `Provider` of type `alertmanager` and an `Alert` for error events of every
   GitRepository and Kustomization in `flux-system` and every HelmRepository
@@ -69,9 +71,10 @@ notification leaves the cluster yet.
 ## Acceptance criteria
 
 1. All Flux Kustomizations and HelmReleases Ready; the sync-job Job completed.
-2. vmalert: 32 default groups (158 alerts, 69 recording rules) plus the Sloth
+2. vmalert: 31 default groups (158 alerts, 53 recording rules) plus the Sloth
    rules (60 recording, 8 alerts), no rule errors.
-3. While healthy, only `Watchdog` fires, routed to `watchdog`.
+3. While healthy, only `Watchdog` (→ `watchdog`) and `InfoInhibitor` (→
+   `null`) fire; info-level alerts are silenced by `InfoInhibitor`.
 4. `amtool config routes test`: Watchdog → `watchdog`, Sloth page → `page`,
    Sloth ticket → `ticket`, `severity=critical` → `page`, `warning` →
    `ticket`, Flux `error` → `ticket`.
@@ -88,7 +91,12 @@ notification leaves the cluster yet.
   -l app.kubernetes.io/managed-by=sync-job` lists them.
 - Alerts that can't fire here for lack of their metrics: Alertmanager cluster
   alerts (one replica), kubelet certificate alerts (not exposed by k3s),
-  node RAID/systemd/bonding alerts (not in the Docker VM).
+  node RAID/systemd/bonding alerts (not in the Docker VM), kube-state-metrics'
+  List/Watch error alerts (its v2.19.1 telemetry exports no list/watch
+  counters; `TargetDown` covers it being down).
+- `count:up0` records nothing while every target is up, so vmalert's
+  `RecordingRulesNoData` (severity `info`) is pending for it; `InfoInhibitor`
+  keeps info alerts from notifying, as kube-prometheus intends.
 - Flux alerts are events: one alert per failure event, resolved after an hour
   unless the failure repeats.
 
