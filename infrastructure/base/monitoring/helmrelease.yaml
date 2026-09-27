@@ -28,6 +28,10 @@ spec:
       sidecar:
         dashboards:
           folderAnnotation: grafana_folder
+          # The chart's default, /var/lib/grafana/dashboards, would hide the
+          # downloaded Sloth dashboards below (the sidecar's volume is mounted
+          # over that directory). /tmp/dashboards is the Grafana chart's default.
+          folder: /tmp/dashboards
           provider:
             foldersFromFilesStructure: true
       # Sloth's own SLO dashboards, unedited, for Sloth's default 30-day period.

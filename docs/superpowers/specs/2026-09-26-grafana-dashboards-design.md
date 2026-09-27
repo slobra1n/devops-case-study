@@ -81,6 +81,7 @@ grafana:
   sidecar:
     dashboards:
       folderAnnotation: grafana_folder
+      folder: /tmp/dashboards
       provider:
         foldersFromFilesStructure: true
   dashboardProviders:
@@ -103,7 +104,11 @@ The sidecar (label `grafana_dashboard=1`, Grafana's namespace) writes each
 ConfigMap into the folder its annotation names; Grafana creates the folders.
 The chart's `download-dashboards` init container fetches the two Sloth
 revisions and replaces `${DS_PROMETHEUS}` with `VictoriaMetrics` (its only
-change); the `slos` provider shows them in folder `SLOs`.
+change); the `slos` provider shows them in folder `SLOs`. The init container
+always writes to `/var/lib/grafana/dashboards/<provider>/`. The
+victoria-metrics chart mounts the sidecar's volume over
+`/var/lib/grafana/dashboards`, which hides those files from Grafana, so the
+sidecar moves to `/tmp/dashboards` (the Grafana chart's own default).
 
 ### Per-cluster override
 
