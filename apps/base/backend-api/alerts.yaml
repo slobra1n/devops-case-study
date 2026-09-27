@@ -1,0 +1,29 @@
+# backend-api's database pool: the cause behind a backend outage that the
+# SLOs can't see (README, "Alerts and what they catch"). The pool holds at most
+# 10 connections per pod (the app's default DB_POOL_MAX).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: backend-api-alerts
+  namespace: backend-api
+spec:
+  groups:
+    - name: backend-api
+      rules:
+        - alert: BackendDbPoolNearlyFull
+          expr: max by (namespace, pod) (backend_api_db_connections_active) >= 8
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }} holds {{ $value }} of 10 database connections"
+            description: "When the pool is full, POST /process answers 503 and /ready fails, so the pod leaves the Service. Connections that stay taken without traffic point to a leak."
+            dashboard: "{{ $externalURL }}/d/apps-red"
+        - alert: BackendDbQueryErrors
+          expr: sum by (namespace, status) (increase(backend_api_db_queries_total{status!="success"}[5m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "backend-api database queries fail: {{ $labels.status }}"
+            description: "pool_exhausted: no free connection, the request got 503. error: the query failed, the request got 500 (for example, a missing documents table)."
+            dashboard: "{{ $externalURL }}/d/apps-red"

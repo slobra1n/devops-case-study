@@ -41,9 +41,10 @@ each alert links to the board that explains it.
   placeholder `DS_PROMETHEUS` is filled in with our data source. They need
   Sloth's metadata rules, which the Sloth controller generates, and Sloth's default
   30-day SLO period, which the SLO spec uses since 2026-09-27.
-- **One board of our own** (since 2026-09-27): `Apps / Requests, errors,
-  duration` (below). Request rate, errors and latency per app are what an
-  on-call person asks first, and no published board fits the apps' own metric
+- **One board of our own** (since 2026-09-27): `Apps / Service health`
+  (below). Request rate, errors and latency per app are what an on-call
+  person asks first, then what they depend on, and no published board fits
+  the apps' own metric
   names. Everything else is published: app health is the SLO dashboards,
   component depth the pinned upstream drill-downs, platform problems are
   alerts.
@@ -189,16 +190,28 @@ monitoring). They were removed so that only published dashboards remain; their
 problem panels become platform alerts.
 
 Since the review below, one board of our own is back, in folder `Apps`:
-`Apps / Requests, errors, duration` (`dashboards/apps/red.json`, uid
-`apps-red`). One row per app, each with the RED method's three panels
-(Grafana's layout: rate and errors left, duration right), from the apps' own
-metrics on their user endpoint (probe endpoints left out):
+`Apps / Service health` (`dashboards/apps/red.json`, uid `apps-red`; titled
+`Apps / Requests, errors, duration` until the second line was added). One row
+per app. Its first line holds the RED method's three panels (Grafana's
+layout: rate and errors left, duration right), from the apps' own metrics on
+their user endpoint (probe endpoints left out):
 
 | Panel | Query (ml-api; backend-api the same with `backend_api_*`, `/process`) | Marks |
 |---|---|---|
 | Rate | `sum by (status) (rate(ml_api_requests_total{namespace="ml-api",endpoint="/predict"}[$__rate_interval]))` | 2xx green, 5xx red |
 | Errors | 5xx share of that rate (`or vector(0)` so a healthy app shows 0, not "No data") | dashed line at 1%, the 99% SLO's budget |
 | Duration | p50, p90, p99 from `ml_api_request_duration_seconds_bucket` | dashed line at the latency SLO threshold (1 s; 0.25 s for backend-api) |
+
+Its second line shows what the first depends on, so every key metric the
+case study lists is on the board except `ml_api_predictions_total` (it equals
+the `/predict` requests with status 200):
+
+| Panel | Query | Marks |
+|---|---|---|
+| Ready pods (both apps) | `kube_deployment_status_replicas_available` and `kube_deployment_spec_replicas` of the app's Deployment | desired dashed; at 0 the app's own metrics go quiet and `DeploymentUnavailable` pages |
+| Memory (ml-api) | per pod: `container_memory_working_set_bytes`, `ml_api_memory_bytes`, and the container's memory limit | limit dashed red |
+| DB connections (backend-api) | `backend_api_db_connections_active` per pod | dashed lines at 8 (`BackendDbPoolNearlyFull`) and 10 (the pool's size) |
+| DB queries (backend-api) | `sum by (status) (rate(backend_api_db_queries_total[$__rate_interval]))` | success green, `pool_exhausted` and `error` red |
 
 Every panel has a description and three links: the app's SLO / Detail, the
 kube-prometheus Namespace (Pods) board for its namespace, and its logs in
@@ -339,7 +352,7 @@ the kube-prometheus boards refresh every 10 s and have no panel descriptions
 4. In a browser, Grafana opens on High level Sloth SLOs and lists 15
    dashboards in `SLOs`, `Apps` and `Components`; no panel shows an error, and
    empty panels are only problem lists or features we don't use.
-5. The apps board shows data in all 6 panels, and its three links per panel
+5. The apps board shows data in all 10 panels, and its three links per panel
    open the app's SLO / Detail, its Namespace (Pods) board and its logs.
 6. An alert's `dashboard` link, opened with Grafana port-forwarded to
    localhost:3000, lands on its board.

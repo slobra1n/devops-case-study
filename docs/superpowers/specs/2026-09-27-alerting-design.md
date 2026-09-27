@@ -4,8 +4,8 @@
 
 Alert on what users feel (SLO burn rates) and on what breaks the platform
 (nodes, pods, kubelet, scrape targets, VictoriaMetrics, postgres, Flux), with
-published rules only, routed to a `page` and a `ticket` receiver. No
-notification leaves the cluster yet.
+published rules plus five of our own for the gaps they leave, routed to a
+`page` and a `ticket` receiver. No notification leaves the cluster yet.
 
 ## Decisions
 
@@ -43,6 +43,23 @@ notification leaves the cluster yet.
     unsynchronised, though it matches the host within milliseconds.
     `NodeClockSkewDetected` still watches the offset.
 
+- **Our own rules** (since 2026-09-27): the SLOs count requests inside the
+  apps. A pod that fails readiness leaves its Service, gets no requests, and
+  its counters stop, so a full outage burns no error budget; the published pod
+  alerts catch it only as tickets after 15 minutes. Five rules close that gap
+  and name the causes the case study's apps can produce:
+
+| Rule | File | Severity | Fires when |
+|---|---|---|---|
+| `DeploymentUnavailable` | `infrastructure/base/monitoring/workload-alerts.yaml` | critical (page) | a Deployment outside `kube-system`, `flux-system` and `monitoring` has had no available pod for 1 minute |
+| `ContainerOOMKilled` | same | warning | a container restarted in the last 10 minutes and its last termination was `OOMKilled` |
+| `ContainerMemoryNearLimit` | same | warning | a container's working set has been above 90% of its memory limit for 5 minutes |
+| `BackendDbPoolNearlyFull` | `apps/base/backend-api/alerts.yaml` | warning | a backend-api pod has held 8 or more of its 10 pool connections for 1 minute |
+| `BackendDbQueryErrors` | same | warning | any backend-api query ended `pool_exhausted` or `error` in the last 5 minutes |
+
+  Each has a `dashboard` link: the Namespace (Pods) or Pod board, or the apps
+  board for the backend rules.
+
 - **Flux:** Flux's own mechanism, not a PromQL rule: a notification-controller
   `Provider` of type `alertmanager` and an `Alert` for error events of every
   GitRepository and Kustomization in `flux-system` and every HelmRepository
@@ -73,8 +90,8 @@ notification leaves the cluster yet.
 
 1. All Flux Kustomizations and HelmReleases Ready; the sync-job Job completed.
 2. vmalert: 34 default groups (179 alerts, 53 recording rules, including
-   VictoriaLogs' 3 groups) plus the Sloth rules (60 recording, 8 alerts), no
-   rule errors.
+   VictoriaLogs' 3 groups), the Sloth rules (60 recording, 8 alerts) and our
+   2 groups (5 alerts), no rule errors.
 3. While healthy, only `Watchdog` (→ `watchdog`) and `InfoInhibitor` (→
    `null`) fire; info-level alerts are silenced by `InfoInhibitor`.
 4. `amtool config routes test`: Watchdog → `watchdog`, Sloth page → `page`,
@@ -82,6 +99,12 @@ notification leaves the cluster yet.
    `ticket`, Flux `error` → `ticket`.
 5. A failing Flux Kustomization appears in Alertmanager as
    `FluxKustomization…` with `severity=error`.
+6. Fault tests fire our rules: `CONN_RETURN_MODE=hold` on backend-api raises
+   `BackendDbQueryErrors`, `BackendDbPoolNearlyFull` and then
+   `DeploymentUnavailable` within 5 minutes, and no SLO alert; the ml-api
+   image with `MEM_ALLOC_MB` in a scratch namespace raises
+   `ContainerOOMKilled`, then `DeploymentUnavailable`, which stays firing
+   while the pod crash-loops.
 
 ## Known limits
 
@@ -101,6 +124,13 @@ notification leaves the cluster yet.
   keeps info alerts from notifying, as kube-prometheus intends.
 - Flux alerts are events: one alert per failure event, resolved after an hour
   unless the failure repeats.
+- `DeploymentUnavailable` resolves 5 minutes after the app recovers
+  (`keep_firing_for`), so a crash loop pages once.
+- `BackendDbPoolNearlyFull` has the pool size (10, the app's default
+  `DB_POOL_MAX`) written into its threshold; the app exports no pool maximum.
+- `BackendDbQueryErrors` resolves 5 minutes after the last failed query. A
+  leaked pool gets no more requests once its pods are unready, so from then
+  on only `BackendDbPoolNearlyFull` and the page stay.
 
 ## Out of scope
 

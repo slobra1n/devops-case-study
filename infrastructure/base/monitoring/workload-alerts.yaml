@@ -1,0 +1,56 @@
+# Hand-written rules for gaps in the published ones (README, "Alerts and what
+# they catch"). A pod that fails readiness leaves its Service, so the app's own
+# metrics see no traffic and its SLOs stay green: these rules watch the pods.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: workload-alerts
+  namespace: monitoring
+spec:
+  groups:
+    - name: workload-alerts
+      rules:
+        # Every workload outside the platform namespaces, so a new app is
+        # covered without a change here. Platform components have the
+        # published TargetDown and KubeDeploymentReplicasMismatch tickets.
+        # keep_firing_for holds the page while a crash-looping pod turns Ready
+        # for a few seconds between restarts.
+        - alert: DeploymentUnavailable
+          expr: |
+            kube_deployment_spec_replicas{namespace!~"kube-system|flux-system|monitoring"} > 0
+            and on (namespace, deployment)
+            kube_deployment_status_replicas_available == 0
+          for: 1m
+          keep_firing_for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.deployment }} has no ready pod"
+            description: "No pod of {{ $labels.namespace }}/{{ $labels.deployment }} has passed its readiness probe for 1 minute, so its Service sends requests nowhere."
+            dashboard: "{{ $externalURL }}/d/85a562078cdf77779eaa1add43ccec1e?var-namespace={{ $labels.namespace }}"
+        - alert: ContainerOOMKilled
+          expr: |
+            increase(kube_pod_container_status_restarts_total[10m]) > 0
+            and on (namespace, pod, container)
+            kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} {{ $labels.container }} was OOM-killed"
+            description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} restarted in the last 10 minutes after reaching its memory limit."
+            dashboard: "{{ $externalURL }}/d/6581e46e4e5c7ba40a07646395ef7b23?var-namespace={{ $labels.namespace }}&var-pod={{ $labels.pod }}"
+        # Catches a slow leak before the OOM kill; a fast one only shows as
+        # ContainerOOMKilled.
+        - alert: ContainerMemoryNearLimit
+          expr: |
+            max by (namespace, pod, container) (container_memory_working_set_bytes{container!=""})
+            / on (namespace, pod, container)
+            max by (namespace, pod, container) (kube_pod_container_resource_limits{resource="memory"})
+            > 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} {{ $labels.container }} uses {{ $value | humanizePercentage }} of its memory limit"
+            description: "Container {{ $labels.container }} has used more than 90% of its memory limit for 5 minutes. At 100% the kernel kills it."
+            dashboard: "{{ $externalURL }}/d/6581e46e4e5c7ba40a07646395ef7b23?var-namespace={{ $labels.namespace }}&var-pod={{ $labels.pod }}"
