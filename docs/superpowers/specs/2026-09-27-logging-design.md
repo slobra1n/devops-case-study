@@ -11,6 +11,10 @@ Grafana and in VictoriaLogs' own UI, from the same VictoriaMetrics stack.
   HelmRelease, managed by the VictoriaMetrics operator: `vlsingle.enabled` and
   `vlagent.enabled`. Both run v1.52.0, the version the chart pins. Rejected:
   Loki or a separate log agent (a second stack beside VictoriaMetrics).
+  With VictoriaLogs on, the chart also puts an internal VMAuth
+  (`vmauth-victoria-metrics-k8s-stack-internal`) in front of VMSingle and
+  VLSingle and points vmalert's data source at it, so vmalert can evaluate
+  MetricsQL and LogsQL rules. All rule evaluation now goes through that pod.
 - **Collection:** VLAgent with its Kubernetes collector (the chart's default,
   `k8sCollector.enabled: true`) runs on every node, reads every container's
   log from the node and adds pod, namespace and container fields. It sends
