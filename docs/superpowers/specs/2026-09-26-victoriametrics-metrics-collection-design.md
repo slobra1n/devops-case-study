@@ -40,7 +40,7 @@ Namespace: `monitoring`.
 | kubelet cAdvisor, probes, resource scrapes | on | CPU and memory for every container, probe results |
 | kubelet `/metrics` scrape | on | On k3s the one scrape of the shared registry: kubelet, apiserver, scheduler, controller-manager and datastore (`etcd_*`, SQLite via kine) metrics, all as `job="kubelet"`. Runs on every node; the standard kubelet rules expect it. Keeps the `name` label (the chart default drops it). About 42k series |
 | CoreDNS scrape | on | Cluster DNS |
-| Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks ml-api `/health` and backend-api `/ready` through their Services, like a client; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
+| Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks every Service annotated with `operator.victoriametrics.com/probe-path` (ml-api `/health`, backend-api `/ready`) through the Service, like a client; the operator finds the Services, so a Service is only checked once it exists; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
 | node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
 | vmalert, Alertmanager | on | Evaluate the SLO rules and the platform alerts and route them to `page` and `ticket` receivers without integrations ([alerting spec](2026-09-27-alerting-design.md)) |
 | Sloth controller, `PrometheusRule` CRD | on | Generate the SLO rules from each app's `PrometheusServiceLevel`; the operator converts them into `VMRule`s ([SLO spec](2026-09-26-slo-sli-design.md)) |

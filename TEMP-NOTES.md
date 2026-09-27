@@ -176,6 +176,7 @@ so there was no way to order them.
 | Use a different dashboard on one cluster | `infrastructure/<cluster>/monitoring/kustomization.yaml`: a `configMapGenerator` entry with the dashboard's name, `namespace: monitoring`, `behavior: replace` and a file with the same name |
 | Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`, listed in the app's `kustomization.yaml`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
 | Change an alert rule | SLO alerts: `apps/base/<app>/slo.yaml` (target) and `infrastructure/base/monitoring/sloth.yaml` (plugin chain). Platform alerts: `defaultRules` in `helmrelease.yaml` (pinned sources; `rules.<AlertName>.enabled: false` to switch one off, per cluster in the overlay) |
+| Add an HTTP check for an app | Annotate its Service in `apps/base/<app>/service.yaml` with `operator.victoriametrics.com/probe-path: /<path>`; the shared `app-endpoints` probe (`helmrelease.yaml`) finds it. POST or a different blackbox module: its own `VMProbe` in the app folder, like `apps/base/ml-api/vmprobe.yaml` |
 | Change where alerts go | `alertmanager.config` in `helmrelease.yaml` (routes, receivers, inhibition) |
 | Search logs | Grafana → Explore → `VictoriaLogs`, or `kubectl -n monitoring port-forward svc/vlsingle-victoria-metrics-k8s-stack 9428` and `http://localhost:9428/select/vmui` |
 

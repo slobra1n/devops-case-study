@@ -5,6 +5,9 @@ metadata:
   namespace: backend-api
   labels:
     app: backend-api
+  annotations:
+    # Checked by the shared app-endpoints probe (monitoring).
+    operator.victoriametrics.com/probe-path: /ready
 spec:
   selector:
     app: backend-api
