@@ -116,6 +116,26 @@ so there was no way to order them.
   three Deployments. Those don't exist yet when `flux bootstrap` returns, so
   `kubectl wait` failed at once and ended the script.
 
+## Change 8: alerting
+
+- SLO targets: 99% for all four SLOs. ml-api's availability is measured by
+  only 120 probes an hour; at 99.9% two failed probes in an hour would page.
+  At 99% a page needs about 9 minutes of full outage in an hour. Latency
+  thresholds stay at 1 s and 0.25 s.
+- Sloth now also generates the burn-rate alerts (page and ticket per SLO).
+- Platform alerts come from the chart's published default rules, not
+  hand-written ones: its sync job downloads them at every Helm upgrade, pinned
+  to the versions that run here, plus the postgres-exporter mixin. Flux
+  failures come from Flux's own notification-controller, sent to Alertmanager.
+  Two rules are off with a reason (in `helmrelease.yaml` and the devops-cs
+  overlay). Details: `docs/superpowers/specs/2026-09-27-alerting-design.md`.
+- No notification channel yet: alerts are only visible in the Alertmanager UI
+  and Grafana.
+- **Secrets are plain text in git** (`databases/devops-cs/postgres/secret.yaml`,
+  `apps/devops-cs/backend-api/secret.yaml`). I left it that way for now. A
+  channel's webhook URL or password must not be added like that: encrypt
+  Secrets with SOPS + age (Flux decrypts them natively) first.
+
 ## Where things live
 
 | I want to… | Go to |
@@ -129,6 +149,8 @@ so there was no way to order them.
 | Add or change a dashboard | `infrastructure/base/monitoring/dashboards/`: the JSON file plus one `configMapGenerator` entry in its `kustomization.yaml`. Sloth's SLO dashboards: grafana.com ID and revision in `helmrelease.yaml` (`grafana.dashboards`) |
 | Use a different dashboard on one cluster | `infrastructure/<cluster>/monitoring/kustomization.yaml`: a `configMapGenerator` entry with the dashboard's name, `namespace: monitoring`, `behavior: replace` and a file with the same name |
 | Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`, listed in the app's `kustomization.yaml`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
+| Change an alert rule | SLO alerts: `apps/base/<app>/slo.yaml` (target) and `infrastructure/base/monitoring/sloth.yaml` (plugin chain). Platform alerts: `defaultRules` in `helmrelease.yaml` (pinned sources; `rules.<AlertName>.enabled: false` to switch one off, per cluster in the overlay) |
+| Change where alerts go | `alertmanager.config` in `helmrelease.yaml` (routes, receivers, inhibition) |
 
 ## Known issue: backend 500s after a restart
 

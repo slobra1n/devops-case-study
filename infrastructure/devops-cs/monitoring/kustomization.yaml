@@ -19,3 +19,18 @@ patches:
                 resources:
                   requests:
                     storage: 5Gi
+  # k3d's node is the Docker Desktop VM: no NTP daemon disciplines its kernel
+  # clock, so node-exporter reports it as never synchronised, though it matches
+  # the host within milliseconds. NodeClockSkewDetected still watches the offset.
+  - patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: victoria-metrics-k8s-stack
+        namespace: monitoring
+      spec:
+        values:
+          defaultRules:
+            rules:
+              NodeClockNotSynchronising:
+                enabled: false

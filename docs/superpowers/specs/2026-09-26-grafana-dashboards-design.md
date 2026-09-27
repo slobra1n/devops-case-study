@@ -21,8 +21,8 @@ alerts, not by watching a board.
   dashboard is provisioned (from git, or for Sloth's two from grafana.com) and
   can't be saved from the UI, so a restart loses nothing.
 - **Runtime downloads: only Sloth's two dashboards** (below).
-  `defaultDashboards.enabled: false` (already set), `syncJob.enabled: false`
-  (it currently runs after every upgrade and syncs nothing), and Grafana's
+  `defaultDashboards.enabled: false` (already set), so the chart's sync job
+  (on since 2026-09-27 for the default alert rules) syncs no dashboards, and Grafana's
   `plugins.preinstall_disabled: true`. Grafana 13 otherwise downloads six
   plugins at every start (drilldown apps, extra data sources); the dashboards
   use only built-in panels and the Prometheus data source.
@@ -54,7 +54,7 @@ alerts, not by watching a board.
 ```
 infrastructure/base/monitoring/
   kustomization.yaml        resources gain: dashboards
-  helmrelease.yaml          grafana on (sidecar folders, Sloth dashboards from grafana.com), syncJob off
+  helmrelease.yaml          grafana on (sidecar folders, Sloth dashboards from grafana.com)
   dashboards/
     kustomization.yaml      namespace monitoring; one configMapGenerator entry per file
     components/ flux-cluster.json, vm-single.json, node-exporter-full.json,
@@ -97,7 +97,7 @@ grafana:
                        datasource: [{name: DS_PROMETHEUS, value: VictoriaMetrics}]}
       sloth-detail:   {gnetId: 14348, revision: 5,
                        datasource: [{name: DS_PROMETHEUS, value: VictoriaMetrics}]}
-syncJob:
+defaultDashboards:
   enabled: false
 ```
 
@@ -140,8 +140,8 @@ recording rules: `slo:objective:ratio`, `slo:error_budget:ratio`,
 `slo:time_period:days` (30), `slo:current_burn_rate:ratio` (5m window),
 `slo:period_burn_rate:ratio` (30d), `slo:period_error_budget_remaining:ratio`
 and `sloth_slo_info`. vmalert then runs 4 × 15 = 60 recording rules. Burn
-rate and budget are measured against the placeholder `objective: 99.9` until
-real targets are set.
+rate and budget are measured against each SLO's `objective` (99% since
+2026-09-27).
 
 **Unedited.** Until 2026-09-27 the files were committed with three edits (data
 source variable, `30d` window option renamed to `4w`, calendar-month panels
@@ -150,7 +150,8 @@ the data source placeholder needs filling in, which the chart does at download.
 Tested before the switch: both dashboards load in Grafana 13.1.1 against our
 VictoriaMetrics with no panel errors.
 
-The page/ticket panels read `ALERTS` and show 0 until burn-rate alerts exist.
+The page/ticket panels read `ALERTS`, written by vmalert for Sloth's burn-rate
+alerts; they show OK while no alert fires.
 All panel types are built into Grafana.
 
 ## Our boards (removed 2026-09-27)
@@ -199,7 +200,7 @@ temperatures, CPU frequency) stay empty on a Docker VM.
 1. `kubectl kustomize infrastructure/devops-cs` renders 5 ConfigMaps named
    `dashboard-*` in `monitoring`, each with label `grafana_dashboard: "1"` and
    the annotation `grafana_folder: Components`. The chart
-   render has no sync-job Job, and its `download-dashboards` script fetches
+   render's sync-job config has no dashboard sources, and its `download-dashboards` script fetches
    grafana.com 14643 revision 2 and 14348 revision 5 into folder `SLOs`.
 2. The regenerated rules add only the metadata rules (the SLI rules are
    unchanged); vmalert reports 60 rules and 0 errors.
@@ -214,8 +215,8 @@ temperatures, CPU frequency) stay empty on a Docker VM.
 
 ## Known limits
 
-- The SLO dashboards measure against the 99.9 placeholder; their burn rates and
-  budgets mean nothing until real targets are set.
+- The 30-day budget includes the failure tests of 2026-09-26 until they leave
+  the window on 2026-10-26.
 - The 30-day numbers cover only the data collected so far until 30 days have
   passed.
 - Sloth's two dashboards are downloaded at every Grafana start. If grafana.com

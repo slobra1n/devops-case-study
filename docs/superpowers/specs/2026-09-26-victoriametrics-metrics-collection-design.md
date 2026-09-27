@@ -42,12 +42,13 @@ Namespace: `monitoring`.
 | CoreDNS scrape | on | Cluster DNS |
 | Blackbox exporter + `VMProbe` `app-endpoints` | on | Checks ml-api `/health` and backend-api `/ready` through their Services, like a client; `prometheus-blackbox-exporter` chart (VictoriaMetrics has no prober) |
 | node-exporter | on | Node CPU, memory, disk, network, load (on k3d: the Docker Desktop VM, seen from the node container) |
-| vmalert, Alertmanager | on | Evaluate the SLO recording rules and route future alerts to `page` and `ticket` receivers without integrations ([SLO spec](2026-09-26-slo-sli-design.md)) |
+| vmalert, Alertmanager | on | Evaluate the SLO rules and the platform alerts and route them to `page` and `ticket` receivers without integrations ([alerting spec](2026-09-27-alerting-design.md)) |
 | Sloth controller, `PrometheusRule` CRD | on | Generate the SLO rules from each app's `PrometheusServiceLevel`; the operator converts them into `VMRule`s ([SLO spec](2026-09-26-slo-sli-design.md)) |
 | Grafana | on | Dashboards provisioned from git, no persistence; the two Sloth dashboards are downloaded from grafana.com at startup, nothing else is ([dashboards spec](2026-09-26-grafana-dashboards-design.md)) |
-| Default rules, default dashboards, dashboard sync job | off | Rules and dashboards come from this repo (the Sloth dashboards: pinned grafana.com revisions named in the HelmRelease) |
+| Default rules (sync job) | on | The chart's published platform alerts, downloaded by its sync job at every Helm upgrade from sources pinned to the running versions ([alerting spec](2026-09-27-alerting-design.md)) |
+| Default dashboards | off | Dashboards come from this repo (the Sloth dashboards: pinned grafana.com revisions named in the HelmRelease) |
 | controller-manager, scheduler, etcd scrapes | off | k3s runs them inside its one process and serves no separate endpoints (10257/10259 aren't listening). Their metrics come through the kubelet `/metrics` scrape |
-| API server scrape | off | On k3s it returns the same registry as the kubelet's `/metrics` ([k3s docs](https://docs.k3s.io/reference/metrics): scrape a single endpoint). Its alert groups are then not installed; add k3s-adapted ones with alerting |
+| API server scrape | off | On k3s it returns the same registry as the kubelet's `/metrics` ([k3s docs](https://docs.k3s.io/reference/metrics): scrape a single endpoint). Its alert groups are then not installed; the one API-server-dependent rule left (`KubeClientErrors`) is rewritten to `job="kubelet"` |
 
 ## Annotation rule
 

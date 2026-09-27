@@ -1,0 +1,28 @@
+# Flux reconciliation failures as alerts, the way Flux documents it: its
+# notification-controller forwards error events of these objects to Alertmanager
+# (https://fluxcd.io/flux/components/notification/providers/#prometheus-alertmanager).
+# Labels: alertname Flux<Kind><Reason>, severity error. Events carry no end
+# time; Alertmanager resolves them after resolve_timeout (helmrelease.yaml).
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: alertmanager
+  namespace: flux-system
+spec:
+  type: alertmanager
+  address: http://vmalertmanager-victoria-metrics-k8s-stack.monitoring.svc:9093/api/v2/alerts/
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: flux-errors
+  namespace: flux-system
+spec:
+  providerRef:
+    name: alertmanager
+  eventSeverity: error
+  eventSources:
+    - {kind: GitRepository, name: "*", namespace: flux-system}
+    - {kind: Kustomization, name: "*", namespace: flux-system}
+    - {kind: HelmRepository, name: "*", namespace: monitoring}
+    - {kind: HelmRelease, name: "*", namespace: monitoring}

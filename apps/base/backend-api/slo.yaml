@@ -10,16 +10,16 @@ spec:
   slos:
     - name: process-availability
       alerting:
-        name: BackendApiProcessAvailability # used once alert rules are generated
-      objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
+        name: BackendApiProcessAvailability
+      objective: 99 # 30-day target; chosen 2026-09-27
       sli:
         events:
           errorQuery: sum(increase(backend_api_requests_total{endpoint="/process",status=~"5.."}[{{.window}}])) or vector(0)
           totalQuery: sum(increase(backend_api_requests_total{endpoint="/process"}[{{.window}}]))
     - name: process-latency
       alerting:
-        name: BackendApiProcessLatency # used once alert rules are generated
-      objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
+        name: BackendApiProcessLatency
+      objective: 99 # 30-day target; chosen 2026-09-27
       sli:
         events:
           errorQuery: |

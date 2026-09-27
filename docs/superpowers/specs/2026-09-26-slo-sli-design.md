@@ -5,17 +5,17 @@
 Measure the user-facing SLIs of ml-api and backend-api the way the Google SRE
 workbook prescribes ([Implementing SLOs](https://sre.google/workbook/implementing-slos/),
 [Alerting on SLOs](https://sre.google/workbook/alerting-on-slos/)), with the
-recording windows and alert routing its alerting needs. This step records SLIs
-and routes alerts; it sets no targets and creates no alert rules. Choosing
-targets later means the steps under "When targets are chosen".
+recording windows and burn-rate alerts it describes. Since 2026-09-27 every SLO
+has a target and Sloth generates its burn-rate alerts; routing and the
+platform alerts are in the [alerting spec](2026-09-27-alerting-design.md).
 
 ## Decisions
 
-- **Scope:** SLI recording rules evaluated by vmalert, and Alertmanager
-  routing. The metadata rules the SLO dashboards read came with the
-  [dashboards spec](2026-09-26-grafana-dashboards-design.md). SLO targets,
-  burn-rate alerts, notification channels, the SLO document and the error
-  budget policy come later.
+- **Scope:** SLI recording rules evaluated by vmalert, SLO targets and their
+  burn-rate alerts, and Alertmanager routing. The metadata rules the SLO
+  dashboards read came with the
+  [dashboards spec](2026-09-26-grafana-dashboards-design.md). Notification
+  channels, the SLO document and the error budget policy come later.
 - **SLI style:** the ratio of bad events to valid events, as the workbook
   recommends ("What to Measure: Using SLIs").
 - **SLO window:** 30-day rolling window, Sloth's default and the period its
@@ -35,11 +35,12 @@ targets later means the steps under "When targets are chosen".
   validator, plugin chain; the blackbox probe module in
   `blackbox-exporter.yaml`). Each app only defines its SLIs in its own
   `slo.yaml`.
-- **Targets later:** Sloth requires an `objective` and an `alerting.name` on
-  every SLO, even when it generates no alerts. Each SLO carries
-  `objective: 99.9`, marked as a placeholder, and the alert name it will use
-  later. The SLO dashboards measure burn rate and budget against the
-  placeholder; no alert uses either yet. Latency thresholds are provisional.
+- **Targets (2026-09-27):** `objective: 99` for all four SLOs, a 30-day budget
+  of 1% (7.2 h of full outage). ml-api's availability SLI has only 120 probes
+  an hour, and at 99.9% two failed probes in an hour would page; at 99% a page
+  needs about 9 minutes of full outage in an hour. The latency thresholds
+  stay at 1 s and 0.25 s: measured p99 was 0.50 s and 0.01 s. Every SLO keeps
+  its `alerting.name`, which Sloth requires.
 - **Receivers:** `page` and `ticket` without integrations; alerts are visible
   in the Alertmanager UI.
 
@@ -186,12 +187,12 @@ services in a monorepo, its CI can check `slo.yaml` files before merge with
 the same image: `sloth validate -i <dir> -n 'slo\.yaml$'` plus the plugin
 arguments above.
 
-When targets are chosen: set `objective` in each `slo.yaml`, and add
-`sloth.dev/core/alert_rules/v1` to the plugin chain in `sloth.yaml`. Every SLO
-then gets the workbook's page and ticket alerts (Sloth's default `google-30d` windows:
-page 1 h/5 m and 6 h/30 m, ticket 1 d/2 h and 3 d/6 h), labelled
-`sloth_severity=page|ticket`, which the Alertmanager routes below already
-handle.
+Alerts: `sloth.dev/core/alert_rules/v1` in the plugin chain gives every SLO the
+workbook's page and ticket alerts (Sloth's default `google-30d` windows: page
+1 h/5 m at 14.4× and 6 h/30 m at 6×, ticket 1 d/2 h at 3× and 3 d/6 h at 1×),
+labelled `sloth_severity=page|ticket`, without `for:`, as the workbook
+advises. At 99% a page fires when both windows of a pair exceed 14.4% or 6%
+errors.
 
 SLOs are defined once in `base`; every cluster gets the same SLOs. A cluster
 that needs another objective patches the `objective` field of the
@@ -204,28 +205,14 @@ switched on in `infrastructure/base/monitoring/helmrelease.yaml`:
 
 - `vmalert.enabled: true`. It selects every `VMRule` in every namespace
   (`selectAllByDefault`), evaluates every 20 s and writes the recorded series
-  into VMSingle: 4 SLOs × (8 SLI windows + 7 metadata rules) = 60 recording rules, no alert rules.
-- `alertmanager.enabled: true`. The chart points vmalert at it. Configuration:
-
-```yaml
-route:
-  receiver: ticket              # tickets, and anything unrouted still reaches a human
-  group_by: [alertname, sloth_id]
-  routes:
-    - matchers: ['sloth_severity="page"']
-      receiver: page
-receivers:
-  - name: page
-  - name: ticket
-inhibit_rules:                  # a page silences the ticket of the same SLO
-  - source_matchers: ['sloth_severity="page"']
-    target_matchers: ['sloth_severity="ticket"']
-    equal: [sloth_id]
-```
-
-The inhibit rule is the workbook's alert suppression: a fast burn also
-satisfies the slower conditions and would otherwise notify twice. A real
-channel is later one integration block in a receiver.
+  into VMSingle: 4 SLOs × (8 SLI windows + 7 metadata rules) = 60 recording
+  rules, plus 8 alert rules (page and ticket per SLO).
+- `alertmanager.enabled: true`. The chart points vmalert at it. Routing (the
+  full configuration is in the [alerting spec](2026-09-27-alerting-design.md)):
+  `sloth_severity="page"` goes to receiver `page`, tickets to `ticket`, and a
+  page silences the ticket of the same SLO (`equal: [sloth_id]`). That
+  inhibit rule is the workbook's alert suppression: a fast burn also
+  satisfies the slower conditions and would otherwise notify twice.
 
 **Retention and storage:** VMSingle `retentionPeriod` goes from `14d` to the
 chart's default `"1"`: one month, which VictoriaMetrics counts as 31 days (the
@@ -311,5 +298,4 @@ chart's 20Gi (devops-cs stays at 5Gi).
 
 ## Out of scope
 
-SLO targets, burn-rate alerts, notification channels, the SLO document and
-error budget policy, CI.
+Notification channels, the SLO document and error budget policy, CI.

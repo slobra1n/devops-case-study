@@ -2,8 +2,9 @@
 # into a PrometheusRule; the VictoriaMetrics operator converts that into a VMRule
 # for vmalert (helmrelease.yaml). Everything shared by all SLOs is set here:
 # Sloth version, Sloth's default 30-day period (the upstream Sloth dashboards
-# assume it), MetricsQL validation, and the plugin chain (SLI recording rules
-# plus the metadata rules the dashboards read; no alert rules yet).
+# assume it), MetricsQL validation, and the plugin chain: SLI recording rules,
+# the metadata rules the dashboards read, and the multiwindow, multi-burn-rate
+# page and ticket alerts (Sloth's google-30d windows).
 #
 # Only the PrometheusRule CRD from prometheus-operator: Sloth writes it and the
 # VictoriaMetrics operator converts it. The operator only watches CRDs that
@@ -89,3 +90,6 @@ spec:
               - op: add
                 path: /spec/template/spec/containers/0/args/-
                 value: --slo-plugins={"id":"sloth.dev/core/metadata_rules/v1"}
+              - op: add
+                path: /spec/template/spec/containers/0/args/-
+                value: --slo-plugins={"id":"sloth.dev/core/alert_rules/v1"}

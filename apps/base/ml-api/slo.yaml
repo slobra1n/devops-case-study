@@ -10,8 +10,8 @@ spec:
   slos:
     - name: predict-availability
       alerting:
-        name: MlApiPredictAvailability # used once alert rules are generated
-      objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
+        name: MlApiPredictAvailability
+      objective: 99 # 30-day target; chosen 2026-09-27
       sli:
         events:
           errorQuery: |
@@ -20,8 +20,8 @@ spec:
           totalQuery: sum(count_over_time(probe_success{job="probe/ml-api/predict"}[{{.window}}]))
     - name: predict-latency
       alerting:
-        name: MlApiPredictLatency # used once alert rules are generated
-      objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
+        name: MlApiPredictLatency
+      objective: 99 # 30-day target; chosen 2026-09-27
       sli:
         events:
           errorQuery: |

@@ -6,4 +6,5 @@ resources:
   - helmrelease.yaml
   - blackbox-exporter.yaml
   - sloth.yaml
+  - flux-alerts.yaml
   - dashboards

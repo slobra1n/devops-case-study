@@ -69,36 +69,108 @@ spec:
             gnetId: 14348
             revision: 5
             datasource: [{name: DS_PROMETHEUS, value: VictoriaMetrics}]
-    # SLO alerting (docs/superpowers/specs/2026-09-26-slo-sli-design.md).
-    # vmalert evaluates VMRule objects in any namespace; the chart points it at
-    # this Alertmanager. The receivers have no integrations yet: alerts are
-    # visible in the Alertmanager UI only.
+    # Alert routing (docs/superpowers/specs/2026-09-27-alerting-design.md):
+    # kube-prometheus' published Alertmanager config
+    # (https://github.com/prometheus-operator/kube-prometheus/blob/v0.19.0/manifests/alertmanager-secret.yaml)
+    # plus the Sloth routes. Pages: Sloth fast burn and severity=critical;
+    # everything else is a ticket. The receivers have no integrations yet:
+    # alerts are visible in the Alertmanager UI and Grafana only.
     alertmanager:
       enabled: true
       config:
+        global:
+          # Flux events (flux-alerts.yaml) carry no end time; Flux's docs suggest
+          # an hour. vmalert's alerts carry end times and are unaffected.
+          resolve_timeout: 1h
         route:
           receiver: ticket # tickets, and anything unrouted still reaches a human
-          group_by: [alertname, sloth_id]
+          group_by: [namespace, alertname, sloth_id]
+          group_wait: 30s
+          group_interval: 5m
+          repeat_interval: 12h
           routes:
+            - matchers: ['alertname="Watchdog"'] # always firing: proves the pipeline works
+              receiver: watchdog
+            - matchers: ['alertname="InfoInhibitor"']
+              receiver: "null"
             - matchers: ['sloth_severity="page"']
+              receiver: page
+            - matchers: ['severity="critical"']
               receiver: page
         receivers:
           - name: page
           - name: ticket
-        # The workbook's suppression: a page silences the ticket of the same SLO.
+          - name: watchdog
+          - name: "null"
         inhibit_rules:
+          # The workbook's suppression: a page silences the ticket of the same SLO.
           - source_matchers: ['sloth_severity="page"']
             target_matchers: ['sloth_severity="ticket"']
             equal: [sloth_id]
+          # kube-prometheus: critical silences warning/info of the same alert,
+          # warning silences info, and info alerts alone never notify.
+          - source_matchers: ['severity="critical"']
+            target_matchers: ['severity=~"warning|info"']
+            equal: [namespace, alertname]
+          - source_matchers: ['severity="warning"']
+            target_matchers: ['severity="info"']
+            equal: [namespace, alertname]
+          - source_matchers: ['alertname="InfoInhibitor"']
+            target_matchers: ['severity="info"']
+            equal: [namespace]
     vmalert:
       enabled: true
+    # Platform alerts: the chart's published default rules (kube-prometheus and
+    # VictoriaMetrics' own), which its sync-job downloads at every Helm upgrade
+    # and turns into VMRules. Sources are pinned to the versions that run here
+    # (the chart's defaults follow master). The chart already skips the groups
+    # of components k3s doesn't expose (apiserver, scheduler, controller-manager,
+    # etcd). Dashboards stay off.
     defaultRules:
-      enabled: false
+      enabled: true
+      groups:
+        # k3s serves the API server's metrics on the kubelet's /metrics.
+        kubernetes-system:
+          labelRewrites:
+            job:
+              match: apiserver
+              value: kubelet
+      rules:
+        # The backend's readiness check (SELECT 1) ends in a rollback every
+        # time (the connection pool rolls back on return): 1 rollback per
+        # /ready call, not an application error.
+        PostgresHasTooManyRollbacks:
+          enabled: false
+      sources:
+        alertmanager:
+          url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/alertmanager-prometheusRule.yaml
+        kubernetes-control-plane:
+          url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/kubernetesControlPlane-prometheusRule.yaml
+        kubernetes:
+          url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/kubePrometheus-prometheusRule.yaml
+        kube-state-metrics:
+          url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/kubeStateMetrics-prometheusRule.yaml
+        node-exporter:
+          url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/nodeExporter-prometheusRule.yaml
+        vmhealth:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/v1.152.0/deployment/docker/rules/alerts-health.yml
+        vmagent:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/v1.152.0/deployment/docker/rules/alerts-vmagent.yml
+        vmalert:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/v1.152.0/deployment/docker/rules/alerts-vmalert.yml
+        vmsingle:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/v1.152.0/deployment/docker/rules/alerts-single-node.yml
+        vmoperator:
+          url: https://raw.githubusercontent.com/VictoriaMetrics/operator/v0.74.1/config/alerting/vmoperator-rules.yaml
+        # Not a chart default: the postgres-exporter mixin's published alerts.
+        postgres-exporter:
+          url: https://raw.githubusercontent.com/monitoring-mixins/website/50c46fcbdb18d37ba036dbf0de55648eb947348b/assets/postgres-exporter/alerts.yaml
     defaultDashboards:
       enabled: false
-    # Fetches dashboards and rules from the internet at deploy time; both are off.
+    # Runs the rule download above; if GitHub is unreachable, the Helm upgrade
+    # fails and is retried. Rules it no longer generates are deleted.
     syncJob:
-      enabled: false
+      enabled: true
     prometheus-node-exporter:
       enabled: true
     # k3s runs apiserver, scheduler, controller-manager and kubelet in one
@@ -129,10 +201,25 @@ spec:
       enabled: false
     kubeEtcd:
       enabled: false
-    # Ready/suspended state of Flux objects as gotk_resource_info, taken from
-    # Flux's official example (only the kinds this repo uses; add others when used):
-    # https://github.com/fluxcd/flux2-monitoring-example/blob/main/monitoring/controllers/kube-prometheus-stack/kube-state-metrics-config.yaml
     kube-state-metrics:
+      # Its own health (the List/Watch error alerts): expose its telemetry port
+      # and scrape it next to the metrics port. The first endpoint repeats the
+      # chart's default (lists are replaced, not merged).
+      selfMonitor:
+        enabled: true
+      vmScrape:
+        spec:
+          endpoints:
+            - port: http
+              honorLabels: true
+              metricRelabelConfigs:
+                - action: labeldrop
+                  regex: (uid|container_id|image_id)
+            - port: metrics
+              honorLabels: true
+      # Ready/suspended state of Flux objects as gotk_resource_info, taken from
+      # Flux's official example (only the kinds this repo uses; add others when used):
+      # https://github.com/fluxcd/flux2-monitoring-example/blob/main/monitoring/controllers/kube-prometheus-stack/kube-state-metrics-config.yaml
       rbac:
         extraRules:
           - apiGroups: [source.toolkit.fluxcd.io, kustomize.toolkit.fluxcd.io, helm.toolkit.fluxcd.io]
