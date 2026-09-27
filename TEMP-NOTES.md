@@ -150,6 +150,13 @@ so there was no way to order them.
   the data source has one regex per level covering the formats we run. Chosen
   over Loki: Loki's own detection misses `ERROR:` lines, and it needs a second
   chart and its own agent (Grafana Alloy).
+- **Preferred fix: the apps log JSON** (one JSON object per line with `level`
+  and `message`). It is the standard way: vlagent turns JSON fields into log
+  fields by itself, so levels work everywhere, a traceback stays one entry,
+  and there are no level rules to maintain and no log shipper to configure.
+  Not done here because the app images aren't ours; until then the level
+  rules stay, and a split traceback is read back with
+  `… "Traceback" | stream_context after 30`.
 - Alerts only on the logging stack's own health (published rules, pinned); no
   alerts on log content.
 

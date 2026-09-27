@@ -67,3 +67,9 @@ Grafana and in VictoriaLogs' own UI, from the same VictoriaMetrics stack.
 - Logs are kept one month; older logs are gone.
 - Lines without a level word (load-generator, sync-job, Python tracebacks,
   postgres `STATEMENT:`) show level `unknown`.
+- Multi-line messages (Python tracebacks) are stored one entry per line:
+  vlagent can't join lines yet (VictoriaLogs #858). Read them back with
+  `stream_context`, e.g. `"Traceback" | stream_context after 30`.
+- Preferred fix for both limits above: the apps log JSON (one object per line
+  with `level` and `message`). vlagent parses that into fields by itself, so
+  the level rules and any shipper configuration become unnecessary.
