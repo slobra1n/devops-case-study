@@ -206,12 +206,14 @@ The inhibit rule is the workbook's alert suppression: a fast burn also
 satisfies the slower conditions and would otherwise notify twice. A real
 channel is later one integration block in a receiver.
 
-**Retention and storage:** VMSingle `retentionPeriod` goes from `14d` to `32d`
-(30-day window plus 2 days margin). Measured on 2026-09-26 with the formula
+**Retention and storage:** VMSingle `retentionPeriod` goes from `14d` to the
+chart's default `"1"`: one month, which VictoriaMetrics counts as 31 days (the
+30-day window, and the longest calendar month for the Sloth dashboards' month
+panels). Measured on 2026-09-26 with the formula
 from VictoriaMetrics' sizing guide
 (`sum(vm_data_size_bytes) / sum(vm_rows{type!~"indexdb.*"})`): 193 million
 samples a day (2,234/s) at 2.21 bytes per sample, index included, before
-background merges shrink the data. That is about 14 GB for 32 days, or 16 GB
+background merges shrink the data. That is about 13 GB for 31 days, or 16 GB
 with the 20% free space VictoriaMetrics recommends for merges. Old data is
 deleted lazily, so usage can stay above that for a while.
 
@@ -227,7 +229,7 @@ Watch `vm_data_size_bytes`; if it grows too fast, drop the API server and etcd
 histogram buckets first (the `ponytail:` note in the HelmRelease).
 
 This updates the metrics-collection spec: vmalert and Alertmanager move from
-off to on, retention from 14 days to 32 days, and the base PVC from 5Gi to the
+off to on, retention from 14 days to 31 days (the chart default), and the base PVC from 5Gi to the
 chart's 20Gi (devops-cs stays at 5Gi).
 
 **Access:** no ingress. vmalert and Alertmanager UIs through
@@ -253,7 +255,7 @@ chart's 20Gi (devops-cs stays at 5Gi).
    - `QUERY_OVERHEAD_MS=300` on backend-api: `process-latency` rises above 0.
 4. The drift check passes; it fails after editing a `slo.yaml` without
    regenerating, and passes again after regenerating.
-5. VMSingle on devops-cs runs with `retentionPeriod: 32d` and still requests
+5. VMSingle on devops-cs runs with the chart's `retentionPeriod: "1"` (31 days) and still requests
    `5Gi`.
 6. Synthetic alerts sent to Alertmanager: a `sloth_severity="page"` alert
    goes to `page` and a ticket to `ticket`; a ticket with the same `sloth_id`

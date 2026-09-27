@@ -5,13 +5,17 @@ resources:
 patches:
   # local-path ignores the size and can't grow the existing 5Gi volume, so this
   # cluster keeps the request it was created with.
-  - target:
+  - patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease
-      name: victoria-metrics-k8s-stack
-    patch: |
-      - op: add
-        path: /spec/values/vmsingle/spec/storage
-        value:
-          resources:
-            requests:
-              storage: 5Gi
+      metadata:
+        name: victoria-metrics-k8s-stack
+        namespace: monitoring
+      spec:
+        values:
+          vmsingle:
+            spec:
+              storage:
+                resources:
+                  requests:
+                    storage: 5Gi

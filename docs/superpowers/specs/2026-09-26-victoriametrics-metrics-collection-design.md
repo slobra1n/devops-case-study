@@ -13,8 +13,8 @@ scrape rule. This step collects and stores metrics only.
 - **Discovery:** pods opt in with the `prometheus.io/*` annotations. This is a
   widely used convention, not an official Kubernetes standard. One rule covers
   every pod, so VictoriaMetrics needs no per-app configuration.
-- **Storage:** VMSingle on a PVC with 32 days retention (the 30-day SLO window
-  plus 2 days, [SLO spec](2026-09-26-slo-sli-design.md)). The base uses the
+- **Storage:** VMSingle on a PVC with the chart's default retention, one month
+  (31 days: the 30-day SLO window, [SLO spec](2026-09-26-slo-sli-design.md)). The base uses the
   chart's default 20Gi; devops-cs keeps 5Gi (`local-path` StorageClass) through
   a patch. Metrics must survive pod and cluster restarts.
 - **Layout:** every layer (`infrastructure/`, `databases/`, `apps/`) has the

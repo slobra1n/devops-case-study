@@ -72,7 +72,8 @@ so there was no way to order them.
 - I don't want hand-rolled or edited dashboards. Sloth's own dashboards were
   committed with edits because our SLO period was 4 weeks and they assume
   Sloth's default 30 days.
-- So: keep Sloth's defaults. The SLO period is 30 days (retention 32 days),
+- So: keep Sloth's defaults. The SLO period is 30 days (retention is the
+  chart's default, one month = 31 days),
   and the two Sloth dashboards run exactly as published. The only change is
   the data source, because we use VictoriaMetrics.
 - Grafana downloads them from grafana.com at every start (pinned revisions in

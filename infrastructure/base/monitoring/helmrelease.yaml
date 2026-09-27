@@ -200,11 +200,11 @@ spec:
                   suspended: [spec, suspend]
                   revision: [status, artifact, revision]
                   url: [spec, url]
-    # The chart's default 20Gi PVC fits the 32 days (about 16 GB at today's
-    # ingest, measured in the SLO spec). Clusters override it in their overlay.
-    vmsingle:
-      spec:
-        retentionPeriod: "32d" # 30-day SLO window (Sloth's default) + 2 days
+    # VMSingle runs on the chart's defaults: retention "1" (one month, which
+    # VictoriaMetrics counts as 31 days: the 30-day SLO window and the longest
+    # calendar month for the Sloth dashboards) and a 20Gi PVC (about 16 GB at
+    # today's ingest, measured in the SLO spec). Clusters override the PVC in
+    # their overlay.
     # Objects that use the chart's CRDs. Helm installs the CRDs first, so they
     # can ship in the same release (the chart creates VMAgent/VMSingle the same way).
     extraObjects:
