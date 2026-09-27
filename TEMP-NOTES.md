@@ -120,10 +120,11 @@ so there was no way to order them.
 
 ## Change 8: alerting
 
-- SLO targets: 99% for all four SLOs. ml-api's availability is measured by
-  only 120 probes an hour; at 99.9% two failed probes in an hour would page.
+- SLO targets: 99% for all four SLOs. ml-api's availability was then measured
+  by only 120 probes an hour; at 99.9% two failed probes in an hour would page.
   At 99% a page needs about 9 minutes of full outage in an hour. Latency
-  thresholds stay at 1 s and 0.25 s.
+  thresholds stay at 1 s and 0.25 s. (Change 10 replaced the probe; the
+  targets stayed.)
 - Sloth now also generates the burn-rate alerts (page and ticket per SLO).
 - Platform alerts come from the chart's published default rules, not
   hand-written ones: its sync job downloads them at every Helm upgrade, pinned
@@ -171,10 +172,9 @@ so there was no way to order them.
 - The blackbox exporter is gone. Its other checks (`/health`, `/ready`) fed
   no alert or dashboard; the kubelet already calls those endpoints and the
   default alerts (`KubePodNotReady`, `KubePodCrashLooping`, …) fire on them.
-- Checked in the running code and `/metrics`: ml-api's `/predict` handler has
-  no error path and only counts status 200, so its availability SLO reads 0
-  errors until the app records the real response status. Requests that never
-  reach a pod aren't counted by either app; the pod alerts cover that.
+- ml-api's availability SLO can't see errors yet (see "Known issue: ml-api
+  counts no errors" below). Requests that never reach a pod aren't counted by
+  either app; the pod alerts cover that.
 
 ## Where things live
 
@@ -207,3 +207,21 @@ so there was no way to order them.
   connect). That is out of scope here.
 - Workaround for now: once postgres is running, restart the backend:
   `kubectl -n backend-api rollout restart deployment/backend-api`
+
+## Known issue: ml-api counts no errors
+
+- Symptom: ml-api's `predict-availability` SLO always shows 100%, and its
+  burn-rate alerts can't fire, whatever happens to ml-api.
+- Cause: the app, not the SLO. In `/app/app.py`, `predict()` increments
+  `ml_api_requests_total{status="200"}` hard-coded, just before it returns.
+  It has no error path, and if it raises, the 500 is never counted. `/metrics`
+  and VictoriaMetrics only ever show `status="200"` for `/predict`.
+- Not affected: the `predict-latency` SLO (from ml-api's own histogram), and
+  backend-api, which counts its real 500s and 503s.
+- Meanwhile: ml-api being down is caught by the default pod alerts
+  (`KubePodNotReady`, `KubeDeploymentReplicasMismatch`, `KubePodCrashLooping`).
+  They are warnings after 15 minutes, so a ticket, not a page.
+- Proper fix, in the app (out of scope, the image isn't ours): count the real
+  response status, e.g. in a middleware that labels every response, so
+  exceptions show up as 500. The SLO needs no change: `apps/base/ml-api/slo.yaml`
+  already counts `status=~"5.."` as errors.
