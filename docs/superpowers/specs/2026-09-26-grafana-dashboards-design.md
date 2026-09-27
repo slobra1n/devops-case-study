@@ -188,6 +188,79 @@ variable, so provisioning works unedited. The Flux, pod and postgres
 dashboards use no metric we lack. Node Exporter Full's hardware panels (fans,
 temperatures, CPU frequency) stay empty on a Docker VM.
 
+## Review (2026-09-27)
+
+Checked against Grafana's
+[dashboard best practices](https://grafana.com/docs/grafana/latest/visualizations/dashboards/build-dashboards/best-practices/):
+each board answers one question; RED for services, USE for resources; an
+overview → service → component path with links; alerts link to boards; few
+boards. Every panel query of every board was run against VictoriaMetrics, with
+the board's default variables and with one selected namespace, pod or node, and
+every board was opened in a browser. Nothing was changed.
+
+### Findings
+
+| Board | Verdict | Evidence |
+|---|---|---|
+| High level Sloth SLOs | keep, entry point | answers "which SLO is burning"; no link to SLO / Detail |
+| SLO / Detail | keep | per-SLO view; no alert links to it (Sloth's alerts carry none) |
+| Flux Cluster Stats | keep | 11 panels, no defect; its 3 empty panels are the failing/suspended lists, empty while healthy |
+| Postgres Overview | keep | all 6 panels have data |
+| VictoriaMetrics - single-node | keep | 6 alerts link to it; the same file is in the chart's set (below) |
+| Node Exporter Full | replace | 124 panels in 16 rows. 3 TCP panels query `node_tcp_connection_states`, which our node-exporter doesn't export; 18 more stay empty on a Docker VM (no `/` mount, sensors, systemd); crowded network legends (`veth*`) |
+| Kubernetes / Views / Pods | replace | with the default pod = All, `Created by`, `Running on`, `Pod IP` and `QOS Class` stay blank (their queries match `pod="$pod"` exactly); its node link points to a board we don't serve |
+
+Organization:
+
+- **No path between boards:** none of the 7 links to another, so every
+  drill-down is a search.
+- **Alert links broken:** vmalert's external URL renders as `http://` (no
+  ingress, so the chart has no Grafana address). 23 alerts carry a `dashboard`
+  link; 16 point to boards we don't serve (vmagent 10, vmalert 3, operator 3),
+  1 to the VictoriaMetrics cluster board (not applicable here). Sloth's 8 alerts
+  carry none.
+- **Unanswered on-call questions:** per-app request rate, errors and latency
+  (RED); which namespace uses how much CPU and memory; the logging stack's own
+  health.
+
+### Proposal (not applied)
+
+1. **Components from the chart's own set:** `defaultDashboards` through the
+   sync job that already installs the alert rules, sources pinned the same
+   way, annotation `grafana_folder: Components`. 10 boards, rendered offline
+   with the sync job, every query run on the cluster, 7 of them opened in
+   Grafana: Kubernetes / Compute Resources / Cluster → Namespace (Pods) → Pod
+   (linked), Node Exporter / Nodes (CPU, memory, disk space, disk I/O,
+   network; 8/8 panels with data), VictoriaMetrics single-node, vmagent,
+   vmalert and operator (the boards 22 of the 23 alert links name),
+   VictoriaLogs single-node and vlagent (the logging stack has no board today).
+   Their empty panels are only problem lists or unused features. Replaces
+   `node-exporter-full.json`, `k8s-pods.json` and `vm-single.json` in git;
+   Flux and Postgres stay as files (the chart has no such boards). Sources:
+   kube-prometheus `v0.19.0` `manifests/grafana-dashboardDefinitions.yaml`
+   (only `k8s-resources-cluster`, `k8s-resources-namespace`,
+   `k8s-resources-pod`, `nodes`), VictoriaMetrics `v1.152.0` `dashboards/`,
+   VictoriaLogs `v1.52.0` `dashboards/`; the dotdc views, Node Exporter Full
+   and every other kube-prometheus board off.
+2. **Alert links:** `external.grafana.host: localhost:3000` in the devops-cs
+   overlay (the documented port-forward). The chart then sets vmalert's
+   `external.url`; in the render that is the only other change (the sync
+   job's `grafanaUrl`).
+3. **Sloth alerts link to SLO / Detail:** `alerting.annotations.dashboard` in
+   each `slo.yaml`, with `var-service` and `var-slo` from the alert's labels.
+4. **Home dashboard:** `grafana.ini` `dashboards.default_home_dashboard_path:
+   /var/lib/grafana/dashboards/slos/sloth-overview.json`, so Grafana opens on
+   the SLO overview.
+5. **RED view per app:** open. Options: Grafana Explore (today), one
+   hand-written board (breaks "no boards of our own"), or the apps expose
+   standard HTTP metrics (app change, out of scope).
+
+Result: 14 boards, `SLOs` (2) as the entry point and `Components` (12). Trade-offs:
+the chart's boards live in the cluster, not git, and are downloaded from
+GitHub at each Helm upgrade (as the alert rules already are); the
+kube-prometheus boards refresh every 10 s and have no panel descriptions
+(published defaults, left unedited).
+
 ## Documentation updates
 
 - Metrics-collection spec: Grafana moves from off to on; dashboard sync job
@@ -218,8 +291,6 @@ temperatures, CPU frequency) stay empty on a Docker VM.
 
 ## Known limits
 
-- The 30-day budget includes the failure tests of 2026-09-26 until they leave
-  the window on 2026-10-26.
 - The 30-day numbers cover only the data collected so far until 30 days have
   passed.
 - Sloth's two dashboards are downloaded at every Grafana start. If grafana.com
@@ -232,5 +303,6 @@ temperatures, CPU frequency) stay empty on a Docker VM.
 
 ## Out of scope
 
-Platform alerts, SLO targets and burn-rate alerts, ingress and login other than
-the admin user, Grafana persistence, dashboards for logs.
+Ingress and login other than the admin user, Grafana persistence, dashboards
+for log content. (Platform alerts, SLO targets and burn-rate alerts: alerting
+spec.)
