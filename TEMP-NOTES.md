@@ -102,6 +102,20 @@ so there was no way to order them.
 - Trade-off, accepted: the generated rules are no longer in git (like the Helm
   charts, which Flux also renders in the cluster).
 
+## Change 7: open questions settled
+
+- Only published dashboards. The two hand-written Overview boards (`apps`,
+  `platform`) are deleted: I don't want hand-rolled dashboards. App health is
+  the Sloth SLO dashboards, depth is the Components drill-downs, platform
+  problems become alerts, and anything else is a query in Grafana Explore.
+- Postgres stays on `emptyDir`: its data is throwaway here, and the backend's
+  500s after a restart are an application defect (known issue below).
+- No CI for now: I push straight to `main`, and Flux reports a broken render a
+  minute later. Add CI once changes go through pull requests.
+- `bootstrap/bootstrap.sh` waits for the `apps` Kustomization instead of the
+  three Deployments. Those don't exist yet when `flux bootstrap` returns, so
+  `kubectl wait` failed at once and ended the script.
+
 ## Where things live
 
 | I want to… | Go to |

@@ -100,12 +100,14 @@ flux bootstrap github \
   --path="clusters/devops-cs" \
   --personal
 
-# --- Wait for workloads ---
+# --- Wait for Flux to deploy everything ---
+# The apps Kustomization waits for databases and infrastructure (dependsOn) and
+# for its own workloads (wait: true), so Ready means everything is up. Waiting
+# on the Deployments directly would fail at once: they don't exist yet when
+# flux bootstrap returns.
 echo ""
-echo "--- Waiting for workloads to be deployed ---"
-kubectl wait --for=condition=Available deployment/postgres -n postgres --timeout=180s
-kubectl wait --for=condition=Available deployment/ml-api -n ml-api --timeout=180s
-kubectl wait --for=condition=Available deployment/backend-api -n backend-api --timeout=180s
+echo "--- Waiting for Flux to deploy infrastructure, databases and apps ---"
+kubectl -n flux-system wait kustomization/apps --for=condition=Ready --timeout=15m
 
 echo ""
 echo "=== Bootstrap complete! ==="

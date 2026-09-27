@@ -13,13 +13,6 @@ generatorOptions:
   labels:
     grafana_dashboard: "1"
 configMapGenerator:
-  # Ours.
-  - name: dashboard-apps
-    files: [overview/apps.json]
-    options: {annotations: {grafana_folder: Overview}}
-  - name: dashboard-platform
-    files: [overview/platform.json]
-    options: {annotations: {grafana_folder: Overview}}
   # Upstream, unedited. To update, download again at the new pin.
   # https://github.com/fluxcd/flux2-monitoring-example/blob/7ab65dc8b90f7a6751d88f18bbb4e1bee33bf334/monitoring/configs/dashboards/cluster.json
   - name: dashboard-flux-cluster

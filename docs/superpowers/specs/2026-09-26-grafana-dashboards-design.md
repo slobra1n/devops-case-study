@@ -2,13 +2,13 @@
 
 ## Goal
 
-Dashboards for four purposes: choosing SLO targets, watching app health,
-watching the platform, and showing the case study. The SLO dashboards follow
-the Google SRE workbook
+Dashboards for three purposes: choosing SLO targets, drilling into a
+component, and showing the case study. The SLO dashboards follow the Google
+SRE workbook
 ([Implementing SLOs](https://sre.google/workbook/implementing-slos/): SLI
-against the objective, error budget left, burn rate). The app and platform
-dashboards show only what someone on call needs; everything else lives in
-pinned upstream drill-down dashboards and the tools' own UIs.
+against the objective, error budget left, burn rate). Every dashboard is
+published by the tool's own project and runs unedited; problems are found by
+alerts, not by watching a board.
 
 ## Decisions
 
@@ -33,10 +33,13 @@ pinned upstream drill-down dashboards and the tools' own UIs.
   Rejected: the Grafana operator (a second operator for a few files).
 - **SLO dashboards:** Sloth's own two dashboards, unedited: only their import
   placeholder `DS_PROMETHEUS` is filled in with our data source. They need
-  Sloth's metadata rules, which the script generates, and Sloth's default
+  Sloth's metadata rules, which the Sloth controller generates, and Sloth's default
   30-day SLO period, which the SLO spec uses since 2026-09-27.
-- **App and platform:** two focused boards we own, plus pinned upstream
-  drill-downs for depth.
+- **No boards of our own** (since 2026-09-27): only published dashboards, no
+  hand-written JSON. App health is the SLO dashboards; component depth is the
+  pinned upstream drill-downs; platform problems become alerts; anything else
+  (request rate, latency percentiles, DB connections) is a query in Grafana
+  Explore.
 - **Per cluster:** dashboards live in `base`; a cluster overlay can replace
   one.
 - **Access:** no ingress; each UI through `kubectl -n monitoring port-forward`:
@@ -54,7 +57,6 @@ infrastructure/base/monitoring/
   helmrelease.yaml          grafana on (sidecar folders, Sloth dashboards from grafana.com), syncJob off
   dashboards/
     kustomization.yaml      namespace monitoring; one configMapGenerator entry per file
-    overview/   apps.json, platform.json                           ours
     components/ flux-cluster.json, vm-single.json, node-exporter-full.json,
                 k8s-pods.json, postgres.json                       upstream, pinned, unedited
 ```
@@ -65,9 +67,8 @@ infrastructure/base/monitoring/
 - `generatorOptions`: label `grafana_dashboard: "1"`, and
   `disableNameSuffixHash: true`. Nothing mounts these ConfigMaps by name, so
   a hash suffix would buy nothing; stable names make cluster overrides simple.
-- One entry per file, named `dashboard-<file name without .json>` (7
-  ConfigMaps), with the annotation `grafana_folder` set to `Overview` or
-  `Components`.
+- One entry per file, named `dashboard-<file name without .json>` (5
+  ConfigMaps), with the annotation `grafana_folder: Components`.
 - A comment per upstream file with its source URL and pin.
 
 HelmRelease values:
@@ -116,10 +117,10 @@ In `infrastructure/<cluster>/monitoring/kustomization.yaml`:
 
 ```yaml
 configMapGenerator:
-  - name: dashboard-apps          # replace: same name, file with the same name
+  - name: dashboard-postgres      # replace: same name, file with the same name
     namespace: monitoring
     behavior: replace
-    files: [apps.json]
+    files: [postgres.json]
 ```
 
 The replacement keeps the base label and folder annotation (tested with
@@ -152,100 +153,13 @@ VictoriaMetrics with no panel errors.
 The page/ticket panels read `ALERTS` and show 0 until burn-rate alerts exist.
 All panel types are built into Grafana.
 
-## Our boards (folder `Overview`)
+## Our boards (removed 2026-09-27)
 
-Hand-written JSON, fixed UIDs `apps` and `platform`, a `${datasource}`
-variable (type Prometheus), default range 6h, refresh 30s. `$__rate_interval`
-in rates. Red only where the bad value is clear (not Ready > 0, targets down
-> 0, `pg_up` = 0); CPU, memory and disk get no invented warning levels, those
-come with the platform alerts. Panels link to the drill-down they summarize by
-UID (`/d/<uid>`); where the details live in a tool UI (targets down, rule
-errors), the panel description names it.
-
-### Apps
-
-One row per API with the SRE book's four golden signals, user traffic only
-(`/predict`, `/process`; health, readiness and `/metrics` excluded like the
-SLIs). Shown for ml-api; backend-api is the same with its names unless noted.
-
-```
-# Traffic, req/s by status
-sum by (status) (rate(ml_api_requests_total{endpoint="/predict"}[$__rate_interval]))
-
-# Errors
-#   ml-api: failed predict probes (the server only ever records 200)
-1 - avg_over_time(probe_success{job="probe/ml-api/predict"}[$__rate_interval])
-#   backend-api: 5xx share, and DB queries by status (success, pool_exhausted, error)
-(sum(rate(backend_api_requests_total{endpoint="/process",status=~"5.."}[$__rate_interval])) or vector(0))
-  / sum(rate(backend_api_requests_total{endpoint="/process"}[$__rate_interval]))
-sum by (status) (rate(backend_api_db_queries_total[$__rate_interval]))
-
-# Latency, p50 / p90 / p99
-histogram_quantile(0.99, sum by (le) (rate(ml_api_request_duration_seconds_bucket{endpoint="/predict"}[$__rate_interval])))
-
-# Saturation, per pod: CPU and memory vs limit, CPU throttling
-sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="ml-api",container="ml-api"}[$__rate_interval]))
-  / sum by (pod) (kube_pod_container_resource_limits{namespace="ml-api",container="ml-api",resource="cpu"})
-sum by (pod) (container_memory_working_set_bytes{namespace="ml-api",container="ml-api"})
-  / sum by (pod) (kube_pod_container_resource_limits{namespace="ml-api",container="ml-api",resource="memory"})
-sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace="ml-api",container="ml-api"}[$__rate_interval]))
-  / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace="ml-api",container="ml-api"}[$__rate_interval]))
-#   backend-api only: DB connections in use per pod (pool max 10, DB_POOL_MAX default)
-sum by (pod) (backend_api_db_connections_active)
-
-# Pods: ready vs desired, restarts in the range
-max(kube_deployment_status_replicas_available{namespace="ml-api",deployment="ml-api"})
-max(kube_deployment_spec_replicas{namespace="ml-api",deployment="ml-api"})
-sum(increase(kube_pod_container_status_restarts_total{namespace="ml-api"}[$__range]))
-```
-
-Postgres row (backend-api's only dependency), links to the Postgres drill-down:
-
-```
-pg_up
-sum(pg_stat_database_numbackends) / max(pg_settings_max_connections)
-```
-
-`ml_api_memory_bytes` is not used: it always reports 0. Memory comes from
-cAdvisor.
-
-### Platform
-
-Four rows, in the order you'd debug:
-
-```
-# 1. GitOps (link: Flux Cluster Stats)
-count(gotk_resource_info{ready!="True"}) or vector(0)
-gotk_resource_info   # table: customresource_kind, exported_namespace, name, ready, suspended, revision
-
-# 2. Workloads (link: Kubernetes / Views / Pods)
-sum by (namespace) (kube_pod_status_ready{condition="false"}
-  * on(namespace, pod) group_left() (1 - kube_pod_status_phase{phase="Succeeded"}))
-sum by (namespace, pod, container) (increase(kube_pod_container_status_restarts_total[$__range])) > 0
-sum by (namespace, deployment) (kube_deployment_status_replicas_unavailable) > 0
-
-# 3. Node (link: Node Exporter Full)
-max by (node) (kube_node_status_condition{condition="Ready",status="true"})
-1 - avg(rate(node_cpu_seconds_total{mode="idle"}[$__rate_interval]))
-1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
-max(1 - node_filesystem_avail_bytes{mountpoint=~"/|/var/lib/rancher/k3s"}
-      / node_filesystem_size_bytes{mountpoint=~"/|/var/lib/rancher/k3s"})
-
-# 4. Monitoring itself (link: VictoriaMetrics - single-node;
-#    targets down: vmagent /targets; rule errors: vmalert UI)
-up == 0              # table: job, instance
-sum(vm_data_size_bytes)
-min(vm_free_disk_space_bytes)
-sum(increase(vmalert_recording_rules_errors_total[$__range]))
-  + (sum(increase(vmalert_alerting_rules_errors_total[$__range])) or vector(0))
-```
-
-The disk query covers both a normal node (`/`) and k3d, where the node's `/`
-is an overlay the chart excludes and k3s data sits on `/var/lib/rancher/k3s`.
-The restart, unavailable-deployment and targets-down tables are problem lists:
-empty while healthy. `max`/`min` around kube-state-metrics and VMSingle series
-drop the `pod` label, which changes when those pods restart; otherwise a stat
-shows one value per old pod.
+Until 2026-09-27 folder `Overview` held two hand-written boards, `apps` (the
+four golden signals per API) and `platform` (Flux, workloads, node,
+monitoring). They were removed so that only published dashboards remain; their
+problem panels become platform alerts, and their queries are in git history
+for use in Explore.
 
 ## Drill-downs (folder `Components`)
 
@@ -282,20 +196,19 @@ temperatures, CPU frequency) stay empty on a Docker VM.
 
 ## Acceptance criteria
 
-1. `kubectl kustomize infrastructure/devops-cs` renders 7 ConfigMaps named
+1. `kubectl kustomize infrastructure/devops-cs` renders 5 ConfigMaps named
    `dashboard-*` in `monitoring`, each with label `grafana_dashboard: "1"` and
-   a `grafana_folder` annotation (2 `Overview`, 5 `Components`). The chart
+   the annotation `grafana_folder: Components`. The chart
    render has no sync-job Job, and its `download-dashboards` script fetches
    grafana.com 14643 revision 2 and 14348 revision 5 into folder `SLOs`.
 2. The regenerated rules add only the metadata rules (the SLI rules are
    unchanged); vmalert reports 60 rules and 0 errors.
 3. `flux get kustomizations` and `flux get helmreleases -A` show all Ready
    (helm-controller waits for the Grafana pod).
-4. In a browser, Grafana lists the 9 dashboards in the folders `Overview`,
-   `SLOs` and `Components`, and no panel on any of them shows an error. Our
-   four boards (`apps`, `platform`, `sloth-overview`, `sloth-detail`) show
-   data in every panel except the problem lists (empty while healthy) and the
-   page/ticket alert panels (0).
+4. In a browser, Grafana lists the 7 dashboards in the folders `SLOs` and
+   `Components`, and no panel on any of them shows an error. The two Sloth
+   boards show data in every panel except the problem lists (empty while
+   healthy) and the page/ticket alert panels (0).
 5. Kubernetes / Views / Pods shows the `ml-api` pods, although our series
    have no `cluster` label.
 
