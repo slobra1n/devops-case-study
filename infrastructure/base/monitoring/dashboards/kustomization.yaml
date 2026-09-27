@@ -1,7 +1,8 @@
-# Grafana dashboards (docs/superpowers/specs/2026-09-26-grafana-dashboards-design.md).
+# Grafana dashboards kept in git (docs/superpowers/specs/2026-09-26-grafana-dashboards-design.md).
 # Each file becomes a ConfigMap; Grafana's sidecar loads every ConfigMap labelled
 # grafana_dashboard=1 into the folder named by its grafana_folder annotation.
-# The Sloth SLO dashboards are not here: Grafana downloads them from grafana.com
+# Not here: the chart's published boards (defaultDashboards in ../helmrelease.yaml)
+# and the Sloth SLO dashboards Grafana downloads from grafana.com
 # (grafana.dashboards in ../helmrelease.yaml).
 # Clusters replace one in their overlay with a configMapGenerator entry of the
 # same name and `behavior: replace`.
@@ -18,19 +19,12 @@ configMapGenerator:
   - name: dashboard-flux-cluster
     files: [components/flux-cluster.json]
     options: {annotations: {grafana_folder: Components}}
-  # https://github.com/VictoriaMetrics/VictoriaMetrics/blob/v1.152.0/dashboards/victoriametrics.json
-  - name: dashboard-vm-single
-    files: [components/vm-single.json]
-    options: {annotations: {grafana_folder: Components}}
-  # https://grafana.com/grafana/dashboards/1860 revision 45
-  - name: dashboard-node-exporter-full
-    files: [components/node-exporter-full.json]
-    options: {annotations: {grafana_folder: Components}}
-  # https://github.com/dotdc/grafana-dashboards-kubernetes/blob/v3.0.8/dashboards/k8s-views-pods.json
-  - name: dashboard-k8s-pods
-    files: [components/k8s-pods.json]
-    options: {annotations: {grafana_folder: Components}}
   # https://github.com/prometheus-community/postgres_exporter/blob/v0.20.1/postgres_mixin/dashboards/postgres-overview.json
   - name: dashboard-postgres
     files: [components/postgres.json]
     options: {annotations: {grafana_folder: Components}}
+  # Ours, the only hand-written board: request rate, errors and duration per
+  # app, from the apps' own metrics. No published board fits their metric names.
+  - name: dashboard-apps-red
+    files: [apps/red.json]
+    options: {annotations: {grafana_folder: Apps}}

@@ -176,6 +176,25 @@ so there was no way to order them.
   counts no errors" below). Requests that never reach a pod aren't counted by
   either app; the pod alerts cover that.
 
+## Change 11: dashboards reviewed
+
+- I had every board reviewed against Grafana's dashboard best practices
+  (findings in the dashboards spec, "Review"): each board should answer one
+  question, and there should be a path from overview to detail.
+- Component boards now come from the VictoriaMetrics chart's own published
+  set, trimmed to one board per question and pinned, the same way as the
+  alert rules: Kubernetes resources (cluster → namespace → pod), the node,
+  VictoriaMetrics and VictoriaLogs. Node Exporter Full (124 panels, three
+  broken) and the Pods view (blank info panels by default) are gone.
+- One hand-written board after all: Apps / Requests, errors, duration. Request
+  rate, errors and latency per app are the first thing to look at (Grafana's
+  RED method), and no published board fits the apps' metric names. It links
+  each app to its SLO, its pods and its logs. This is the one exception to
+  "only published dashboards" (Change 7).
+- Grafana opens on the SLO overview, and alerts link to their board: vmalert
+  knows Grafana's address (localhost:3000, the port-forward), and Sloth's
+  alerts open SLO / Detail for their SLO.
+
 ## Where things live
 
 | I want to… | Go to |
@@ -186,8 +205,9 @@ so there was no way to order them.
 | Add an infrastructure component (cert-manager, Loki) | `infrastructure/base/<component>/` + `infrastructure/<cluster>/<component>/` + one line in `infrastructure/<cluster>/kustomization.yaml` |
 | Add a cluster | `clusters/<cluster>/` + a `<layer>/<cluster>/` overlay per layer |
 | Add a new top-level layer folder | Also add `!/<folder>` to `.sourceignore`; Flux only downloads the folders listed there (the `databases/` layer was missing at first: "kustomization path not found") |
-| Add or change a dashboard | `infrastructure/base/monitoring/dashboards/`: the JSON file plus one `configMapGenerator` entry in its `kustomization.yaml`. Sloth's SLO dashboards: grafana.com ID and revision in `helmrelease.yaml` (`grafana.dashboards`) |
-| Use a different dashboard on one cluster | `infrastructure/<cluster>/monitoring/kustomization.yaml`: a `configMapGenerator` entry with the dashboard's name, `namespace: monitoring`, `behavior: replace` and a file with the same name |
+| Open Grafana | `kubectl -n monitoring port-forward svc/victoria-metrics-k8s-stack-grafana 3000:80`, then `http://localhost:3000` (user `admin`, password in Secret `victoria-metrics-k8s-stack-grafana`). Alert links assume port 3000 |
+| Add or change a dashboard | A file (ours, Flux, Postgres): `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's published boards: `defaultDashboards` in `helmrelease.yaml` (pinned `sources`, `dashboards.<name>.enabled`). Sloth's SLO dashboards: grafana.com ID and revision in `grafana.dashboards` |
+| Use a different dashboard on one cluster | `infrastructure/<cluster>/monitoring/kustomization.yaml`: for a file, a `configMapGenerator` entry with the dashboard's name, `namespace: monitoring`, `behavior: replace` and a file with the same name; for a chart board, a HelmRelease patch of `defaultDashboards` |
 | Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`, listed in the app's `kustomization.yaml`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
 | Change an alert rule | SLO alerts: `apps/base/<app>/slo.yaml` (target) and `infrastructure/base/monitoring/sloth.yaml` (plugin chain). Platform alerts: `defaultRules` in `helmrelease.yaml` (pinned sources; `rules.<AlertName>.enabled: false` to switch one off, per cluster in the overlay) |
 | Change where alerts go | `alertmanager.config` in `helmrelease.yaml` (routes, receivers, inhibition) |

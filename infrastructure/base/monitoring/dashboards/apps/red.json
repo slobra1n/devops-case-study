@@ -1,0 +1,710 @@
+{
+  "uid": "apps-red",
+  "title": "Apps / Requests, errors, duration",
+  "description": "RED view per app: request rate, error share and latency of each app's user endpoint, from the apps' own metrics. Links in each panel lead to the app's SLO, pods and logs.",
+  "tags": [
+    "apps"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "schemaVersion": 41,
+  "version": 1,
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "sloth"
+      ],
+      "asDropdown": true,
+      "title": "SLOs",
+      "includeVars": false,
+      "keepTime": true
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "ml-api \u00b7 POST /predict",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Rate",
+      "description": "Requests per second to POST /predict, by response status, counted by ml-api itself (`ml_api_requests_total`). Health and readiness probes are left out.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "VictoriaMetrics"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "VictoriaMetrics"
+          },
+          "range": true,
+          "expr": "sum by (status) (rate(ml_api_requests_total{namespace=\"ml-api\",endpoint=\"/predict\"}[$__rate_interval]))",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "2.."
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "5.."
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "links": [
+        {
+          "title": "SLO / Detail: ml-api",
+          "url": "/d/slo-detail?var-service=ml-api&${__url_time_range}"
+        },
+        {
+          "title": "Pods: namespace ml-api",
+          "url": "/d/85a562078cdf77779eaa1add43ccec1e?var-namespace=ml-api&${__url_time_range}"
+        },
+        {
+          "title": "Logs: namespace ml-api",
+          "url": "/explore?schemaVersion=1&orgId=1&panes={\"a\":{\"datasource\":\"VictoriaLogs\",\"queries\":[{\"refId\":\"A\",\"datasource\":{\"type\":\"victoriametrics-logs-datasource\",\"uid\":\"VictoriaLogs\"},\"expr\":\"kubernetes.pod_namespace:=ml-api\",\"queryType\":\"instant\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Errors",
+      "description": "Share of POST /predict requests answered with a 5xx status. The dashed line is the error budget of the 99% availability SLO (1%); SLO / Detail shows the burn rate. ml-api counts every request as 200 (known issue in TEMP-NOTES.md), so this stays 0 until the app records its real status.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "VictoriaMetrics"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "VictoriaMetrics"
+          },
+          "range": true,
+          "expr": "(sum(rate(ml_api_requests_total{namespace=\"ml-api\",endpoint=\"/predict\",status=~\"5..\"}[$__rate_interval])) or vector(0)) / sum(rate(ml_api_requests_total{namespace=\"ml-api\",endpoint=\"/predict\"}[$__rate_interval]))",
+          "legendFormat": "5xx share"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed"
+            },
+            "axisSoftMax": 0.02
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx share"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "links": [
+        {
+          "title": "SLO / Detail: ml-api",
+          "url": "/d/slo-detail?var-service=ml-api&${__url_time_range}"
+        },
+        {
+          "title": "Pods: namespace ml-api",
+          "url": "/d/85a562078cdf77779eaa1add43ccec1e?var-namespace=ml-api&${__url_time_range}"
+        },
+        {
+          "title": "Logs: namespace ml-api",
+          "url": "/explore?schemaVersion=1&orgId=1&panes={\"a\":{\"datasource\":\"VictoriaLogs\",\"queries\":[{\"refId\":\"A\",\"datasource\":{\"type\":\"victoriametrics-logs-datasource\",\"uid\":\"VictoriaLogs\"},\"expr\":\"kubernetes.pod_namespace:=ml-api\",\"queryType\":\"instant\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Duration",
+      "description": "Latency percentiles of POST /predict, from ml-api's own histogram (`ml_api_request_duration_seconds`). The dashed line is the latency SLO threshold (1 s): 99% of requests must be faster.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "VictoriaMetrics"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "VictoriaMetrics"
+          },
+          "range": true,
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(ml_api_request_duration_seconds_bucket{namespace=\"ml-api\",endpoint=\"/predict\"}[$__rate_interval])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "VictoriaMetrics"
+          },
+          "range": true,
+          "expr": "histogram_quantile(0.9, sum by (le) (rate(ml_api_request_duration_seconds_bucket{namespace=\"ml-api\",endpoint=\"/predict\"}[$__rate_interval])))",
+          "legendFormat": "p90"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "VictoriaMetrics"
+          },
+          "range": true,
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(ml_api_request_duration_seconds_bucket{namespace=\"ml-api\",endpoint=\"/predict\"}[$__rate_interval])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed"
+            },
+            "axisSoftMax": 1.0
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1.0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "links": [
+        {
+          "title": "SLO / Detail: ml-api",
+          "url": "/d/slo-detail?var-service=ml-api&${__url_time_range}"
+        },
+        {
+          "title": "Pods: namespace ml-api",
+          "url": "/d/85a562078cdf77779eaa1add43ccec1e?var-namespace=ml-api&${__url_time_range}"
+        },
+        {
+          "title": "Logs: namespace ml-api",
+          "url": "/explore?schemaVersion=1&orgId=1&panes={\"a\":{\"datasource\":\"VictoriaLogs\",\"queries\":[{\"refId\":\"A\",\"datasource\":{\"type\":\"victoriametrics-logs-datasource\",\"uid\":\"VictoriaLogs\"},\"expr\":\"kubernetes.pod_namespace:=ml-api\",\"queryType\":\"instant\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "row",
+      "title": "backend-api \u00b7 POST /process",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "panels": []
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Rate",
+      "description": "Requests per second to POST /process, by response status, counted by backend-api itself (`backend_api_requests_total`). Health and readiness probes are left out.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "VictoriaMetrics"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "VictoriaMetrics"
+          },
+          "range": true,
+          "expr": "sum by (status) (rate(backend_api_requests_total{namespace=\"backend-api\",endpoint=\"/process\"}[$__rate_interval]))",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "2.."
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "5.."
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "links": [
+        {
+          "title": "SLO / Detail: backend-api",
+          "url": "/d/slo-detail?var-service=backend-api&${__url_time_range}"
+        },
+        {
+          "title": "Pods: namespace backend-api",
+          "url": "/d/85a562078cdf77779eaa1add43ccec1e?var-namespace=backend-api&${__url_time_range}"
+        },
+        {
+          "title": "Logs: namespace backend-api",
+          "url": "/explore?schemaVersion=1&orgId=1&panes={\"a\":{\"datasource\":\"VictoriaLogs\",\"queries\":[{\"refId\":\"A\",\"datasource\":{\"type\":\"victoriametrics-logs-datasource\",\"uid\":\"VictoriaLogs\"},\"expr\":\"kubernetes.pod_namespace:=backend-api\",\"queryType\":\"instant\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Errors",
+      "description": "Share of POST /process requests answered with a 5xx status. The dashed line is the error budget of the 99% availability SLO (1%); SLO / Detail shows the burn rate.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "VictoriaMetrics"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "VictoriaMetrics"
+          },
+          "range": true,
+          "expr": "(sum(rate(backend_api_requests_total{namespace=\"backend-api\",endpoint=\"/process\",status=~\"5..\"}[$__rate_interval])) or vector(0)) / sum(rate(backend_api_requests_total{namespace=\"backend-api\",endpoint=\"/process\"}[$__rate_interval]))",
+          "legendFormat": "5xx share"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed"
+            },
+            "axisSoftMax": 0.02
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx share"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "links": [
+        {
+          "title": "SLO / Detail: backend-api",
+          "url": "/d/slo-detail?var-service=backend-api&${__url_time_range}"
+        },
+        {
+          "title": "Pods: namespace backend-api",
+          "url": "/d/85a562078cdf77779eaa1add43ccec1e?var-namespace=backend-api&${__url_time_range}"
+        },
+        {
+          "title": "Logs: namespace backend-api",
+          "url": "/explore?schemaVersion=1&orgId=1&panes={\"a\":{\"datasource\":\"VictoriaLogs\",\"queries\":[{\"refId\":\"A\",\"datasource\":{\"type\":\"victoriametrics-logs-datasource\",\"uid\":\"VictoriaLogs\"},\"expr\":\"kubernetes.pod_namespace:=backend-api\",\"queryType\":\"instant\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Duration",
+      "description": "Latency percentiles of POST /process, from backend-api's own histogram (`backend_api_request_duration_seconds`). The dashed line is the latency SLO threshold (0.25 s): 99% of requests must be faster.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "VictoriaMetrics"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "VictoriaMetrics"
+          },
+          "range": true,
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(backend_api_request_duration_seconds_bucket{namespace=\"backend-api\",endpoint=\"/process\"}[$__rate_interval])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "VictoriaMetrics"
+          },
+          "range": true,
+          "expr": "histogram_quantile(0.9, sum by (le) (rate(backend_api_request_duration_seconds_bucket{namespace=\"backend-api\",endpoint=\"/process\"}[$__rate_interval])))",
+          "legendFormat": "p90"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "VictoriaMetrics"
+          },
+          "range": true,
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(backend_api_request_duration_seconds_bucket{namespace=\"backend-api\",endpoint=\"/process\"}[$__rate_interval])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed"
+            },
+            "axisSoftMax": 0.25
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "links": [
+        {
+          "title": "SLO / Detail: backend-api",
+          "url": "/d/slo-detail?var-service=backend-api&${__url_time_range}"
+        },
+        {
+          "title": "Pods: namespace backend-api",
+          "url": "/d/85a562078cdf77779eaa1add43ccec1e?var-namespace=backend-api&${__url_time_range}"
+        },
+        {
+          "title": "Logs: namespace backend-api",
+          "url": "/explore?schemaVersion=1&orgId=1&panes={\"a\":{\"datasource\":\"VictoriaLogs\",\"queries\":[{\"refId\":\"A\",\"datasource\":{\"type\":\"victoriametrics-logs-datasource\",\"uid\":\"VictoriaLogs\"},\"expr\":\"kubernetes.pod_namespace:=backend-api\",\"queryType\":\"instant\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}"
+        }
+      ]
+    }
+  ]
+}

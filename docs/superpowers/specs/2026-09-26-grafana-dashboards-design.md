@@ -6,9 +6,10 @@ Dashboards for three purposes: choosing SLO targets, drilling into a
 component, and showing the case study. The SLO dashboards follow the Google
 SRE workbook
 ([Implementing SLOs](https://sre.google/workbook/implementing-slos/): SLI
-against the objective, error budget left, burn rate). Every dashboard is
-published by the tool's own project and runs unedited; problems are found by
-alerts, not by watching a board.
+against the objective, error budget left, burn rate). Every dashboard but one
+is published by the tool's own project and runs unedited; the exception is one
+request/error/duration board for the apps. Problems are found by alerts, and
+each alert links to the board that explains it.
 
 ## Decisions
 
@@ -19,29 +20,39 @@ alerts, not by watching a board.
   ([logging spec](2026-09-27-logging-design.md)). No VictoriaMetrics metrics
   plugin: the Prometheus type covers the dashboards.
 - **Stateless:** no persistent volume (the chart's default `emptyDir`). Every
-  dashboard is provisioned (from git, or for Sloth's two from grafana.com) and
+  dashboard is provisioned (from git, the chart's sync job or grafana.com) and
   can't be saved from the UI, so a restart loses nothing.
-- **Runtime downloads: Sloth's two dashboards** (below) **and the VictoriaLogs
-  data source plugin** (logging spec). `defaultDashboards.enabled: false`, so
-  the chart's sync job (on since 2026-09-27 for the default alert rules) syncs
-  no dashboards. Grafana 13's six default plugins (drilldown apps, extra data
-  sources) are listed in `plugins.disable_plugins`; otherwise it downloads them
-  at every start. (Until 2026-09-27 `plugins.preinstall_disabled: true`, which
-  also blocks any plugin we want.)
-- **Delivery:** dashboard JSON files in git, turned into ConfigMaps by
-  Kustomize's `configMapGenerator`, loaded by the chart's Grafana sidecar.
-  Exception: Sloth's two dashboards come from grafana.com by ID and revision
-  (chart values `grafana.dashboards`), so they run exactly as published.
-  Rejected: the Grafana operator (a second operator for a few files).
+- **Runtime downloads:** Sloth's two dashboards (below), the component
+  dashboards of the chart's published set (`defaultDashboards`, downloaded by
+  the chart's sync job at every Helm upgrade, like the default alert rules,
+  since 2026-09-27) and the VictoriaLogs data source plugin (logging spec).
+  Grafana 13's six default plugins (drilldown apps, extra data sources) are
+  listed in `plugins.disable_plugins`; otherwise it downloads them at every
+  start. (Until 2026-09-27 `plugins.preinstall_disabled: true`, which also
+  blocks any plugin we want.)
+- **Delivery:** three ways, each provisioned so nothing is saved in Grafana:
+  JSON files in git, turned into ConfigMaps by Kustomize's `configMapGenerator`
+  and loaded by the chart's Grafana sidecar (Flux, Postgres, the apps board);
+  the chart's published set, which its sync job writes as ConfigMaps for the
+  same sidecar; and Sloth's two dashboards from grafana.com by ID and revision
+  (chart values `grafana.dashboards`). Rejected: the Grafana operator (a
+  second operator for a few files).
 - **SLO dashboards:** Sloth's own two dashboards, unedited: only their import
   placeholder `DS_PROMETHEUS` is filled in with our data source. They need
   Sloth's metadata rules, which the Sloth controller generates, and Sloth's default
   30-day SLO period, which the SLO spec uses since 2026-09-27.
-- **No boards of our own** (since 2026-09-27): only published dashboards, no
-  hand-written JSON. App health is the SLO dashboards; component depth is the
-  pinned upstream drill-downs; platform problems become alerts; anything else
-  (request rate, latency percentiles, DB connections) is a query in Grafana
-  Explore.
+- **One board of our own** (since 2026-09-27): `Apps / Requests, errors,
+  duration` (below). Request rate, errors and latency per app are what an
+  on-call person asks first, and no published board fits the apps' own metric
+  names. Everything else is published: app health is the SLO dashboards,
+  component depth the pinned upstream drill-downs, platform problems are
+  alerts.
+- **Organization:** three folders, top to bottom: `SLOs` (Grafana's home
+  dashboard is High level Sloth SLOs), `Apps` (the apps board, linking to each
+  app's SLO, pods and logs) and `Components`. Alerts link to their board:
+  vmalert's external URL is the cluster's Grafana address
+  (`external.grafana.host`, set per cluster), Sloth's alerts link to SLO /
+  Detail, the chart's VictoriaMetrics alerts to their component board.
 - **Per cluster:** dashboards live in `base`; a cluster overlay can replace
   one.
 - **Access:** no ingress; each UI through `kubectl -n monitoring port-forward`:
@@ -56,11 +67,14 @@ alerts, not by watching a board.
 ```
 infrastructure/base/monitoring/
   kustomization.yaml        resources gain: dashboards
-  helmrelease.yaml          grafana on (sidecar folders, Sloth dashboards from grafana.com)
+  helmrelease.yaml          grafana on (sidecar folders, home dashboard, Sloth dashboards
+                            from grafana.com), defaultDashboards (published set, pinned)
   dashboards/
     kustomization.yaml      namespace monitoring; one configMapGenerator entry per file
-    components/ flux-cluster.json, vm-single.json, node-exporter-full.json,
-                k8s-pods.json, postgres.json                       upstream, pinned, unedited
+    components/ flux-cluster.json, postgres.json                   upstream, pinned, unedited
+    apps/       red.json                                           ours
+infrastructure/devops-cs/monitoring/
+  kustomization.yaml        external.grafana.host: localhost:3000 (the port-forward)
 ```
 
 `dashboards/kustomization.yaml`:
@@ -69,8 +83,8 @@ infrastructure/base/monitoring/
 - `generatorOptions`: label `grafana_dashboard: "1"`, and
   `disableNameSuffixHash: true`. Nothing mounts these ConfigMaps by name, so
   a hash suffix would buy nothing; stable names make cluster overrides simple.
-- One entry per file, named `dashboard-<file name without .json>` (5
-  ConfigMaps), with the annotation `grafana_folder: Components`.
+- One entry per file, named `dashboard-<name>` (3 ConfigMaps), with the
+  annotation `grafana_folder` (`Components`, or `Apps` for the apps board).
 - A comment per upstream file with its source URL and pin.
 
 HelmRelease values:
@@ -82,6 +96,8 @@ grafana:
     plugins:
       disable_plugins: grafana-lokiexplore-app,grafana-pyroscope-app,grafana-exploretraces-app,grafana-metricsdrilldown-app,elasticsearch,zipkin
       preinstall: victoriametrics-logs-datasource@0.32.0   # logging spec
+    dashboards:
+      default_home_dashboard_path: /var/lib/grafana/dashboards/slos/sloth-overview.json
   sidecar:
     dashboards:
       folderAnnotation: grafana_folder
@@ -101,7 +117,9 @@ grafana:
       sloth-detail:   {gnetId: 14348, revision: 5,
                        datasource: [{name: DS_PROMETHEUS, value: VictoriaMetrics}]}
 defaultDashboards:
-  enabled: false
+  annotations: {grafana_folder: Components}
+  sources: {...}      # pinned URLs; unused sources off (table below)
+  dashboards: {...}   # the kube-prometheus boards not kept, off
 ```
 
 The sidecar (label `grafana_dashboard=1`, Grafana's namespace) writes each
@@ -116,7 +134,7 @@ sidecar moves to `/tmp/dashboards` (the Grafana chart's own default).
 
 ### Per-cluster override
 
-In `infrastructure/<cluster>/monitoring/kustomization.yaml`:
+A file from git, in `infrastructure/<cluster>/monitoring/kustomization.yaml`:
 
 ```yaml
 configMapGenerator:
@@ -127,7 +145,8 @@ configMapGenerator:
 ```
 
 The replacement keeps the base label and folder annotation (tested with
-Kustomize).
+Kustomize). A board of the chart's set: a HelmRelease patch in the same file
+that sets `defaultDashboards.dashboards.<name>.enabled` or a source's `url`.
 
 ## SLO dashboards (folder `SLOs`)
 
@@ -157,36 +176,67 @@ The page/ticket panels read `ALERTS`, written by vmalert for Sloth's burn-rate
 alerts; they show OK while no alert fires.
 All panel types are built into Grafana.
 
-## Our boards (removed 2026-09-27)
+**Links:** High level Sloth SLOs is Grafana's home dashboard. Each Sloth alert
+carries `dashboard: {{ $externalURL }}/d/slo-detail?var-service=…&var-slo=…`
+(`alerting.annotations` in each `slo.yaml`), which opens SLO / Detail on the
+alert's SLO. The two boards don't link to each other (unedited upstream).
+
+## Our boards
 
 Until 2026-09-27 folder `Overview` held two hand-written boards, `apps` (the
 four golden signals per API) and `platform` (Flux, workloads, node,
 monitoring). They were removed so that only published dashboards remain; their
-problem panels become platform alerts, and their queries are in git history
-for use in Explore.
+problem panels become platform alerts.
+
+Since the review below, one board of our own is back, in folder `Apps`:
+`Apps / Requests, errors, duration` (`dashboards/apps/red.json`, uid
+`apps-red`). One row per app, each with the RED method's three panels
+(Grafana's layout: rate and errors left, duration right), from the apps' own
+metrics on their user endpoint (probe endpoints left out):
+
+| Panel | Query (ml-api; backend-api the same with `backend_api_*`, `/process`) | Marks |
+|---|---|---|
+| Rate | `sum by (status) (rate(ml_api_requests_total{namespace="ml-api",endpoint="/predict"}[$__rate_interval]))` | 2xx green, 5xx red |
+| Errors | 5xx share of that rate (`or vector(0)` so a healthy app shows 0, not "No data") | dashed line at 1%, the 99% SLO's budget |
+| Duration | p50, p90, p99 from `ml_api_request_duration_seconds_bucket` | dashed line at the latency SLO threshold (1 s; 0.25 s for backend-api) |
+
+Every panel has a description and three links: the app's SLO / Detail, the
+kube-prometheus Namespace (Pods) board for its namespace, and its logs in
+Explore (VictoriaLogs, `kubernetes.pod_namespace:=<app>`), all for the
+board's time range. A `SLOs` dropdown links the two Sloth boards. ml-api's
+Errors panel stays 0 until ml-api counts its failures (known issue in
+`TEMP-NOTES.md`).
 
 ## Drill-downs (folder `Components`)
 
-Committed exactly as downloaded. Updating one means downloading it again at
-the new pin.
+Upstream, unedited, pinned to what runs here. Updating one means a new pin.
+
+From git (`dashboards/components/`; the chart's set has no such boards):
 
 | File | Source, pin | UID |
 |---|---|---|
 | `flux-cluster.json` | [fluxcd/flux2-monitoring-example](https://github.com/fluxcd/flux2-monitoring-example) `monitoring/configs/dashboards/cluster.json` @ `7ab65dc8b90f` | `flux-cluster` |
-| `vm-single.json` | [VictoriaMetrics](https://github.com/VictoriaMetrics/VictoriaMetrics) `dashboards/victoriametrics.json` @ `v1.152.0` | `wNf0q_kZk` |
-| `node-exporter-full.json` | grafana.com 1860, revision 45 | `rYdddlPWk` |
-| `k8s-pods.json` | [dotdc/grafana-dashboards-kubernetes](https://github.com/dotdc/grafana-dashboards-kubernetes) `dashboards/k8s-views-pods.json` @ `v3.0.8` | `k8s_views_pods` |
 | `postgres.json` | [postgres_exporter](https://github.com/prometheus-community/postgres_exporter) `postgres_mixin/dashboards/postgres-overview.json` @ `v0.20.1` | `wGgaPlciz` |
 
-The pins match what runs: our `gotk_resource_info` config is copied from the
-Flux example; VMSingle runs v1.152.0; node-exporter v1.11.1; the
-postgres-exporter sidecar v0.20.1 (chosen over grafana.com 9628, which uses an
-old dashboard format).
+Our `gotk_resource_info` config is copied from the Flux example; the
+postgres-exporter sidecar runs v0.20.1 (its board chosen over grafana.com
+9628, which uses an old dashboard format).
 
-Every dashboard selects its data source through its own Prometheus-type
-variable, so provisioning works unedited. The Flux, pod and postgres
-dashboards use no metric we lack. Node Exporter Full's hardware panels (fans,
-temperatures, CPU frequency) stay empty on a Docker VM.
+From the chart's published set (`defaultDashboards` in `helmrelease.yaml`):
+
+| Board | Source, pin | UID |
+|---|---|---|
+| Kubernetes / Compute Resources / Cluster → Namespace (Pods) → Pod | [kube-prometheus](https://github.com/prometheus-operator/kube-prometheus) `manifests/grafana-dashboardDefinitions.yaml` @ `v0.19.0` | `efa86fd1…`, `85a56207…`, `6581e46e…` |
+| Node Exporter / Nodes | same file | `7d577163…` |
+| VictoriaMetrics - single-node, vmagent, vmalert, operator | [VictoriaMetrics](https://github.com/VictoriaMetrics/VictoriaMetrics) `dashboards/` @ `v1.152.0` | `wNf0q_kZk`, `G7Z9GzMGz`, `LzldHAVnz`, `1H179hunk` |
+| VictoriaLogs - single-node, vlagent | [VictoriaLogs](https://github.com/VictoriaMetrics/VictoriaLogs) `dashboards/` @ `v1.52.0` | `OqPIZTX4z`, `Y5Z9GzMGz` |
+
+Off: the other ~26 kube-prometheus boards (other OSes, Prometheus itself, the
+API server, which k3s doesn't expose separately, and views that repeat the
+four kept), the dotdc Kubernetes views, CoreDNS, Node Exporter Full and
+Alertmanager's board (mostly empty notification panels until a receiver has
+an integration). The chart already skips etcd, cluster-mode and VictoriaTraces
+boards for our values.
 
 ## Review (2026-09-27)
 
@@ -223,7 +273,7 @@ Organization:
   (RED); which namespace uses how much CPU and memory; the logging stack's own
   health.
 
-### Proposal (not applied)
+### Proposal (applied 2026-09-27, all five items)
 
 1. **Components from the chart's own set:** `defaultDashboards` through the
    sync job that already installs the alert rules, sources pinned the same
@@ -251,20 +301,20 @@ Organization:
 4. **Home dashboard:** `grafana.ini` `dashboards.default_home_dashboard_path:
    /var/lib/grafana/dashboards/slos/sloth-overview.json`, so Grafana opens on
    the SLO overview.
-5. **RED view per app:** open. Options: Grafana Explore (today), one
-   hand-written board (breaks "no boards of our own"), or the apps expose
-   standard HTTP metrics (app change, out of scope).
+5. **RED view per app:** options were Grafana Explore (before), one
+   hand-written board, or the apps expose standard HTTP metrics (app change,
+   out of scope). Chosen: one hand-written board (see "Our boards").
 
-Result: 14 boards, `SLOs` (2) as the entry point and `Components` (12). Trade-offs:
-the chart's boards live in the cluster, not git, and are downloaded from
-GitHub at each Helm upgrade (as the alert rules already are); the
-kube-prometheus boards refresh every 10 s and have no panel descriptions
+Result: 15 boards: `SLOs` (2) as the entry point, `Apps` (1) and `Components`
+(12). Trade-offs: the chart's boards live in the cluster, not git, and are
+downloaded from GitHub at each Helm upgrade (as the alert rules already are);
+the kube-prometheus boards refresh every 10 s and have no panel descriptions
 (published defaults, left unedited).
 
 ## Documentation updates
 
-- Metrics-collection spec: Grafana moves from off to on; dashboard sync job
-  off.
+- Metrics-collection spec: Grafana moves from off to on; default dashboards
+  on (the chart's set, trimmed and pinned).
 - SLO spec: the plugin chain includes `metadata_rules`, 60 recording rules;
   choosing targets later means setting `objective` and adding
   `sloth.dev/core/alert_rules/v1`. "Dashboards" leaves its scope and
@@ -273,21 +323,26 @@ kube-prometheus boards refresh every 10 s and have no panel descriptions
 
 ## Acceptance criteria
 
-1. `kubectl kustomize infrastructure/devops-cs` renders 5 ConfigMaps named
-   `dashboard-*` in `monitoring`, each with label `grafana_dashboard: "1"` and
-   the annotation `grafana_folder: Components`. The chart
-   render's sync-job config has no dashboard sources, and its `download-dashboards` script fetches
-   grafana.com 14643 revision 2 and 14348 revision 5 into folder `SLOs`.
-2. The regenerated rules add only the metadata rules (the SLI rules are
-   unchanged); vmalert reports 60 rules and 0 errors.
+1. `kubectl kustomize infrastructure/devops-cs` renders 3 ConfigMaps named
+   `dashboard-*` in `monitoring` with label `grafana_dashboard: "1"`:
+   `dashboard-flux-cluster` and `dashboard-postgres` (folder `Components`),
+   `dashboard-apps-red` (folder `Apps`). The chart render's
+   `download-dashboards` script fetches grafana.com 14643 revision 2 and 14348
+   revision 5 into folder `SLOs`; its sync-job config, run offline
+   (`OUTPUT=-`), produces exactly the 10 boards of the table above, each
+   annotated `grafana_folder: Components`; vmalert's `external.url` is
+   `http://localhost:3000`.
+2. vmalert reports 0 rule errors; each Sloth alert has the `dashboard`
+   annotation to SLO / Detail.
 3. `flux get kustomizations` and `flux get helmreleases -A` show all Ready
-   (helm-controller waits for the Grafana pod).
-4. In a browser, Grafana lists the 7 dashboards in the folders `SLOs` and
-   `Components`, and no panel on any of them shows an error. The two Sloth
-   boards show data in every panel except the problem lists (empty while
-   healthy) and the page/ticket alert panels (0).
-5. Kubernetes / Views / Pods shows the `ml-api` pods, although our series
-   have no `cluster` label.
+   (helm-controller waits for the Grafana pod and the sync job).
+4. In a browser, Grafana opens on High level Sloth SLOs and lists 15
+   dashboards in `SLOs`, `Apps` and `Components`; no panel shows an error, and
+   empty panels are only problem lists or features we don't use.
+5. The apps board shows data in all 6 panels, and its three links per panel
+   open the app's SLO / Detail, its Namespace (Pods) board and its logs.
+6. An alert's `dashboard` link, opened with Grafana port-forwarded to
+   localhost:3000, lands on its board.
 
 ## Known limits
 
@@ -298,8 +353,12 @@ kube-prometheus boards refresh every 10 s and have no panel descriptions
   files and exits 0; tested) until its next start.
 - Dashboards can't be edited in the UI and saved; changes go through git.
   Exploring in the UI works; saving a copy is lost on restart.
-- Upstream drill-downs are not updated automatically; each is re-downloaded
-  at a new pin by hand.
+- Upstream drill-downs are not updated automatically; each gets a new pin
+  by hand. The chart's set lives in the cluster, not git, and needs GitHub at
+  each Helm upgrade: `kubectl -n monitoring get configmap -l
+  app.kubernetes.io/managed-by=sync-job` lists it.
+- Alert links point at `localhost:3000`, so they work only with the
+  documented port-forward (another cluster sets its own address).
 
 ## Out of scope
 

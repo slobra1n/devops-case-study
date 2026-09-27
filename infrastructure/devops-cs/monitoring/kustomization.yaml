@@ -34,3 +34,16 @@ patches:
             rules:
               NodeClockNotSynchronising:
                 enabled: false
+  # Grafana has no ingress here; it's reached by port-forward on localhost:3000.
+  # vmalert uses this address for the alerts' dashboard and query links.
+  - patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata:
+        name: victoria-metrics-k8s-stack
+        namespace: monitoring
+      spec:
+        values:
+          external:
+            grafana:
+              host: localhost:3000

@@ -11,6 +11,8 @@ spec:
     - name: process-availability
       alerting:
         name: BackendApiProcessAvailability
+        annotations: # opens SLO / Detail on this SLO
+          dashboard: '{{ $externalURL }}/d/slo-detail?var-service={{ $labels.sloth_service }}&var-slo={{ $labels.sloth_slo }}'
       objective: 99 # 30-day target; chosen 2026-09-27
       sli:
         events:
@@ -19,6 +21,8 @@ spec:
     - name: process-latency
       alerting:
         name: BackendApiProcessLatency
+        annotations: # opens SLO / Detail on this SLO
+          dashboard: '{{ $externalURL }}/d/slo-detail?var-service={{ $labels.sloth_service }}&var-slo={{ $labels.sloth_slo }}'
       objective: 99 # 30-day target; chosen 2026-09-27
       sli:
         events:
