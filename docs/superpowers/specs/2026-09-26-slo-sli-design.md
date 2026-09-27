@@ -107,8 +107,9 @@ turning 503 after `HEALTH_TTL_SECONDS` and the liveness probe restarting the
 pod, and refused connections during restarts.
 
 A `VMProbe` named `predict` in the `ml-api` namespace sends an empty
-`POST /predict` to `http://ml-api.ml-api.svc.cluster.local:8000/predict` every
-30 s through the existing blackbox exporter; its job label is
+`POST /predict` to the `ml-api` Service every 30 s through the existing
+blackbox exporter. It finds the Service by its `app: ml-api` label and only
+sets the path, so no host or port is written down. Its job label is
 `probe/ml-api/predict`. `/predict` reads no input and has no side effects, so
 probing it is safe.
 The workbook lists black-box monitoring as an SLI source and synthetic traffic

@@ -1,6 +1,8 @@
 # Black-box source of the predict-availability SLI (slo.yaml): a synthetic
 # POST /predict every 30 s through the shared blackbox exporter. ml-api's own
 # counters only ever record status 200, so they can't show its failures.
+# The target is found from the Service (its address and port); only the path
+# is set here. The Service's probe-path annotation is its GET check (/health).
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMProbe
 metadata:
@@ -12,6 +14,12 @@ spec:
   module: http_post_2xx
   interval: 30s
   targets:
-    staticConfig:
-      targets:
-        - http://ml-api.ml-api.svc.cluster.local:8000/predict
+    kubernetes:
+      - role: service
+        selector:
+          matchLabels:
+            app: ml-api
+        relabelingConfigs:
+          - source_labels: [__address__] # <service>.<namespace>.svc:<port>
+            target_label: __param_target
+            replacement: http://$1/predict
