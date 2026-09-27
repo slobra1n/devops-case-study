@@ -114,7 +114,9 @@ so there was no way to order them.
   minute later. Add CI once changes go through pull requests.
 - `bootstrap/bootstrap.sh` waits for the `apps` Kustomization instead of the
   three Deployments. Those don't exist yet when `flux bootstrap` returns, so
-  `kubectl wait` failed at once and ended the script.
+  `kubectl wait` failed at once and ended the script. Tested with a full
+  rebuild on 2026-09-27 (cluster deleted, script run once): exit 0 after about
+  4.5 minutes, everything Ready, no manual step.
 
 ## Change 8: alerting
 
