@@ -18,8 +18,10 @@ targets later means the steps under "When targets are chosen".
   budget policy come later.
 - **SLI style:** the ratio of bad events to valid events, as the workbook
   recommends ("What to Measure: Using SLIs").
-- **SLO window:** 4-week rolling window, the workbook's general-purpose choice
-  ("Choosing an Appropriate Time Window").
+- **SLO window:** 30-day rolling window, Sloth's default and the period its
+  Grafana dashboards are built for, so they run unedited. (Until 2026-09-27
+  this was the workbook's 4 weeks, "Choosing an Appropriate Time Window",
+  which needed edited dashboards.)
 - **Generator:** [Sloth](https://github.com/slok/sloth) v0.16.0, run as a CLI
   from its pinned container image on a developer machine. Its output is
   committed as `VMRule` objects, so the cluster only runs VictoriaMetrics-native
@@ -89,7 +91,7 @@ total: sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{
 
 A status series only exists after its first occurrence, so the backend has no
 5xx series while it is healthy. `or vector(0)` turns "no errors" into 0 instead
-of no data; without it, Sloth's 4-week SLI would average only the 5-minute
+of no data; without it, Sloth's 30-day SLI would average only the 5-minute
 windows that had errors.
 
 ### Why ml-api availability is black-box
@@ -126,7 +128,7 @@ The backend is not probed: each `POST /process` inserts a row into
 
 ```
 scripts/
-  slo-generate.sh          common: Sloth image v0.16.0, 28d windows, VM validator,
+  slo-generate.sh          common: Sloth image v0.16.0, Sloth's default 30d period, VM validator,
                            SLI and metadata rules; writes VMRules
 infrastructure/base/monitoring/
   blackbox-exporter.yaml   adds the http_post_2xx module
@@ -142,7 +144,7 @@ apps/base/ml-api/
 
 - Finds every `apps/base/*/slo.yaml` and runs, for each:
   `docker run --rm --interactive ghcr.io/slok/sloth:v0.16.0 generate -i /dev/stdin
-  --default-slo-period=28d --disable-default-slo-plugins
+  --disable-default-slo-plugins
   -s '{"id":"sloth.dev/contrib/validate_victoria_metrics/v1"}'
   -s '{"id":"sloth.dev/core/sli_rules/v1"}'
   -s '{"id":"sloth.dev/core/metadata_rules/v1"}' < slo.yaml`. The validator rejects
@@ -156,17 +158,17 @@ apps/base/ml-api/
   `scripts/slo-generate.sh && git diff --exit-code -- 'apps/base/*/slo-rules.yaml'`.
   Sloth's output is deterministic, so any diff means a stale `slo-rules.yaml`.
 
-Sloth generates 8 recording rules per SLO, `slo:sli_error:ratio_rate{5m,30m,1h,2h,6h,1d,3d,4w}`,
+Sloth generates 8 recording rules per SLO, `slo:sli_error:ratio_rate{5m,30m,1h,2h,6h,1d,3d,30d}`,
 labelled `sloth_id`, `sloth_service`, `sloth_slo` and `sloth_window`. These are
-the windows the workbook's multiwindow, multi-burn-rate alerts need. The `4w`
-rule is the average of the 5-minute ratios over 4 weeks.
+the windows the workbook's multiwindow, multi-burn-rate alerts need. The `30d`
+rule is the average of the 5-minute ratios over 30 days.
 
 Workflow: edit `slo.yaml`, run the script, commit both files. Flux applies
 apps after infrastructure, so the `VMRule` and `VMProbe` CRDs exist first.
 
 When targets are chosen: set `objective` in each `slo.yaml`, and add
 `sloth.dev/core/alert_rules/v1` to the plugin chain in the script. Every SLO
-then gets the workbook's page and ticket alerts (Sloth's `google-28d` windows:
+then gets the workbook's page and ticket alerts (Sloth's default `google-30d` windows:
 page 1 h/5 m and 6 h/30 m, ticket 1 d/2 h and 3 d/6 h), labelled
 `sloth_severity=page|ticket`, which the Alertmanager routes below already
 handle.
@@ -204,12 +206,12 @@ The inhibit rule is the workbook's alert suppression: a fast burn also
 satisfies the slower conditions and would otherwise notify twice. A real
 channel is later one integration block in a receiver.
 
-**Retention and storage:** VMSingle `retentionPeriod` goes from `14d` to `30d`
-(4-week window plus 2 days margin). Measured on 2026-09-26 with the formula
+**Retention and storage:** VMSingle `retentionPeriod` goes from `14d` to `32d`
+(30-day window plus 2 days margin). Measured on 2026-09-26 with the formula
 from VictoriaMetrics' sizing guide
 (`sum(vm_data_size_bytes) / sum(vm_rows{type!~"indexdb.*"})`): 193 million
 samples a day (2,234/s) at 2.21 bytes per sample, index included, before
-background merges shrink the data. That is about 13 GB for 30 days, or 15 GB
+background merges shrink the data. That is about 14 GB for 32 days, or 16 GB
 with the 20% free space VictoriaMetrics recommends for merges. Old data is
 deleted lazily, so usage can stay above that for a while.
 
@@ -225,7 +227,7 @@ Watch `vm_data_size_bytes`; if it grows too fast, drop the API server and etcd
 histogram buckets first (the `ponytail:` note in the HelmRelease).
 
 This updates the metrics-collection spec: vmalert and Alertmanager move from
-off to on, retention from 14 days to 30 days, and the base PVC from 5Gi to the
+off to on, retention from 14 days to 32 days, and the base PVC from 5Gi to the
 chart's 20Gi (devops-cs stays at 5Gi).
 
 **Access:** no ingress. vmalert and Alertmanager UIs through
@@ -238,7 +240,7 @@ chart's 20Gi (devops-cs stays at 5Gi).
    `VMAlertmanager` report operational. vmalert reports no rule evaluation
    errors. The target `probe/ml-api/predict` is up.
 2. `slo:sli_error:ratio_rate5m` has exactly one series per SLO (4), and
-   `slo:sli_error:ratio_rate4w` exists for all 4. While the apps are healthy,
+   `slo:sli_error:ratio_rate30d` exists for all 4. While the apps are healthy,
    all values are about 0.
 3. Each SLI detects its own failure (throwaway tests, Flux suspended, reverted
    afterwards):
@@ -251,7 +253,7 @@ chart's 20Gi (devops-cs stays at 5Gi).
    - `QUERY_OVERHEAD_MS=300` on backend-api: `process-latency` rises above 0.
 4. The drift check passes; it fails after editing a `slo.yaml` without
    regenerating, and passes again after regenerating.
-5. VMSingle on devops-cs runs with `retentionPeriod: 30d` and still requests
+5. VMSingle on devops-cs runs with `retentionPeriod: 32d` and still requests
    `5Gi`.
 6. Synthetic alerts sent to Alertmanager: a `sloth_severity="page"` alert
    goes to `page` and a ticket to `ticket`; a ticket with the same `sloth_id`
@@ -271,10 +273,10 @@ chart's 20Gi (devops-cs stays at 5Gi).
   `/predict` traffic.
 - `backend_api_db_*` and `ml_api_memory_bytes` describe causes, not user
   experience; they are for diagnosis and dashboards, not SLIs.
-- Sloth's 4-week SLI is the average of 5-minute ratios, not total bad events
+- Sloth's 30-day SLI is the average of 5-minute ratios, not total bad events
   over total events. Close for steady traffic; bursty traffic skews it. It
-  becomes meaningful 28 days after deployment.
-- On devops-cs, disk use (about 15 GB estimated) exceeds the nominal 5Gi
+  becomes meaningful 30 days after deployment.
+- On devops-cs, disk use (about 16 GB estimated) exceeds the nominal 5Gi
   request; `local-path` doesn't enforce it.
 - No notification leaves the cluster.
 - The server-side queries rely on MetricsQL's `increase`; Prometheus'

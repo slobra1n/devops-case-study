@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Generates apps/base/<app>/slo-rules.yaml (a VMRule) from apps/base/<app>/slo.yaml
 # with Sloth. Everything shared by all apps' SLOs is set here: Sloth version,
-# 28-day SLO period, MetricsQL validation, SLI recording rules, and the metadata
-# rules (objective, error budget, burn rate) the Sloth Grafana dashboards read.
+# MetricsQL validation, SLI recording rules, and the metadata rules (objective,
+# error budget, burn rate) the Sloth Grafana dashboards read. The SLO period is
+# Sloth's default, 30 days, which the upstream Sloth dashboards assume.
 # Drift check: scripts/slo-generate.sh && git diff --exit-code -- 'apps/base/*/slo-rules.yaml'
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -13,7 +14,6 @@ for spec in apps/base/*/slo.yaml; do
   # The spec goes in on stdin: a bind mount can miss a file an editor just replaced.
   rules=$(docker run --rm --interactive ghcr.io/slok/sloth:v0.16.0 generate \
     -i /dev/stdin \
-    --default-slo-period=28d \
     --disable-default-slo-plugins \
     -s '{"id":"sloth.dev/contrib/validate_victoria_metrics/v1"}' \
     -s '{"id":"sloth.dev/core/sli_rules/v1"}' \

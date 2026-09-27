@@ -18,20 +18,23 @@ pinned upstream drill-down dashboards and the tools' own UIs.
   `Alertmanager`. No VictoriaMetrics Grafana plugin: Grafana would download it
   from the internet at every start.
 - **Stateless:** no persistent volume (the chart's default `emptyDir`). Every
-  dashboard is provisioned from git and can't be saved from the UI, so a
-  restart loses nothing.
-- **No runtime downloads:** `defaultDashboards.enabled: false` (already set),
-  `syncJob.enabled: false` (it currently runs after every upgrade and syncs
-  nothing), and Grafana's `plugins.preinstall_disabled: true`. Grafana 13
-  otherwise downloads six plugins at every start (drilldown apps, extra data
-  sources); the dashboards use only built-in panels and the Prometheus data
-  source.
+  dashboard is provisioned (from git, or for Sloth's two from grafana.com) and
+  can't be saved from the UI, so a restart loses nothing.
+- **Runtime downloads: only Sloth's two dashboards** (below).
+  `defaultDashboards.enabled: false` (already set), `syncJob.enabled: false`
+  (it currently runs after every upgrade and syncs nothing), and Grafana's
+  `plugins.preinstall_disabled: true`. Grafana 13 otherwise downloads six
+  plugins at every start (drilldown apps, extra data sources); the dashboards
+  use only built-in panels and the Prometheus data source.
 - **Delivery:** dashboard JSON files in git, turned into ConfigMaps by
   Kustomize's `configMapGenerator`, loaded by the chart's Grafana sidecar.
-  Rejected: grafana.com IDs in chart values (downloads at runtime, not
-  reviewable), the Grafana operator (a second operator for a few files).
-- **SLO dashboards:** Sloth's own two dashboards, not home-made ones; they
-  need Sloth's metadata rules, which the script now generates.
+  Exception: Sloth's two dashboards come from grafana.com by ID and revision
+  (chart values `grafana.dashboards`), so they run exactly as published.
+  Rejected: the Grafana operator (a second operator for a few files).
+- **SLO dashboards:** Sloth's own two dashboards, unedited: only their import
+  placeholder `DS_PROMETHEUS` is filled in with our data source. They need
+  Sloth's metadata rules, which the script generates, and Sloth's default
+  30-day SLO period, which the SLO spec uses since 2026-09-27.
 - **App and platform:** two focused boards we own, plus pinned upstream
   drill-downs for depth.
 - **Per cluster:** dashboards live in `base`; a cluster overlay can replace
@@ -48,11 +51,10 @@ pinned upstream drill-down dashboards and the tools' own UIs.
 ```
 infrastructure/base/monitoring/
   kustomization.yaml        resources gain: dashboards
-  helmrelease.yaml          grafana on (sidecar folders), syncJob off
+  helmrelease.yaml          grafana on (sidecar folders, Sloth dashboards from grafana.com), syncJob off
   dashboards/
     kustomization.yaml      namespace monitoring; one configMapGenerator entry per file
     overview/   apps.json, platform.json                           ours
-    slos/       sloth-overview.json, sloth-detail.json             Sloth, pinned, edited
     components/ flux-cluster.json, vm-single.json, node-exporter-full.json,
                 k8s-pods.json, postgres.json                       upstream, pinned, unedited
 ```
@@ -63,9 +65,9 @@ infrastructure/base/monitoring/
 - `generatorOptions`: label `grafana_dashboard: "1"`, and
   `disableNameSuffixHash: true`. Nothing mounts these ConfigMaps by name, so
   a hash suffix would buy nothing; stable names make cluster overrides simple.
-- One entry per file, named `dashboard-<file name without .json>` (9
-  ConfigMaps), with the annotation `grafana_folder` set to `Overview`, `SLOs`
-  or `Components`.
+- One entry per file, named `dashboard-<file name without .json>` (7
+  ConfigMaps), with the annotation `grafana_folder` set to `Overview` or
+  `Components`.
 - A comment per upstream file with its source URL and pin.
 
 HelmRelease values:
@@ -81,12 +83,27 @@ grafana:
       folderAnnotation: grafana_folder
       provider:
         foldersFromFilesStructure: true
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - {name: slos, folder: SLOs, type: file, disableDeletion: true,
+           editable: false, options: {path: /var/lib/grafana/dashboards/slos}}
+  dashboards:
+    slos:
+      sloth-overview: {gnetId: 14643, revision: 2,
+                       datasource: [{name: DS_PROMETHEUS, value: VictoriaMetrics}]}
+      sloth-detail:   {gnetId: 14348, revision: 5,
+                       datasource: [{name: DS_PROMETHEUS, value: VictoriaMetrics}]}
 syncJob:
   enabled: false
 ```
 
 The sidecar (label `grafana_dashboard=1`, Grafana's namespace) writes each
 ConfigMap into the folder its annotation names; Grafana creates the folders.
+The chart's `download-dashboards` init container fetches the two Sloth
+revisions and replaces `${DS_PROMETHEUS}` with `VictoriaMetrics` (its only
+change); the `slos` provider shows them in folder `SLOs`.
 
 ### Per-cluster override
 
@@ -105,36 +122,29 @@ Kustomize).
 
 ## SLO dashboards (folder `SLOs`)
 
-| File | Source | Shows |
+| Dashboard | Source | Shows |
 |---|---|---|
-| `sloth-overview.json` | grafana.com 14643, revision 2 | every SLO's burn rate, SLOs burning now, budget remaining |
-| `sloth-detail.json` | grafana.com 14348, revision 5 | per SLO: SLI vs objective, current burn rate, budget remaining, burn-rate heatmap, page/ticket alert state |
+| High level Sloth SLOs | grafana.com 14643, revision 2 | every SLO's burn rate, SLOs burning now, budget remaining |
+| SLO / Detail | grafana.com 14348, revision 5 | per SLO: SLI vs objective, current burn rate, budget remaining (30-day window and calendar month), month burn chart, burn-rate heatmap, page/ticket alert state |
 
 **Rules they need:** `scripts/slo-generate.sh` adds
 `sloth.dev/core/metadata_rules/v1` after `sli_rules`. Per SLO it adds 7
 recording rules: `slo:objective:ratio`, `slo:error_budget:ratio`,
-`slo:time_period:days` (28), `slo:current_burn_rate:ratio` (5m window),
-`slo:period_burn_rate:ratio` (4w), `slo:period_error_budget_remaining:ratio`
+`slo:time_period:days` (30), `slo:current_burn_rate:ratio` (5m window),
+`slo:period_burn_rate:ratio` (30d), `slo:period_error_budget_remaining:ratio`
 and `sloth_slo_info`. vmalert then runs 4 × 15 = 60 recording rules. Burn
 rate and budget are measured against the placeholder `objective: 99.9` until
 real targets are set.
 
-**Edits, made once and committed** (the source and revision stay in the
-kustomization comment):
+**Unedited.** Until 2026-09-27 the files were committed with three edits (data
+source variable, `30d` window option renamed to `4w`, calendar-month panels
+replaced) to fit a 4-week SLO period. With Sloth's default 30-day period only
+the data source placeholder needs filling in, which the chart does at download.
+Tested before the switch: both dashboards load in Grafana 13.1.1 against our
+VictoriaMetrics with no panel errors.
 
-1. Data source: `${DS_PROMETHEUS}` becomes `${Datasource}`, the dashboards'
-   own data source variable, and the `__inputs` import block is deleted. A
-   provisioned dashboard can't resolve import inputs.
-2. 28-day window: the Detail `sli_window` option `30d` becomes `4w`, the name
-   of our period rule. Texts that say "30d" or "30 day" say "28d" / "28 day".
-3. Calendar month: Detail's "month" remaining-budget stat is removed, and its
-   "Month error budget burn chart" becomes "Error budget remaining (rolling
-   28d)" on `slo:period_error_budget_remaining:ratio`, with a 28d panel time
-   range. A calendar month is a different window from our 4-week rolling one
-   and would show a second, different budget number.
-
-Unchanged: the page/ticket panels read `ALERTS` and show 0 until burn-rate
-alerts exist. All panel types are built into Grafana.
+The page/ticket panels read `ALERTS` and show 0 until burn-rate alerts exist.
+All panel types are built into Grafana.
 
 ## Our boards (folder `Overview`)
 
@@ -266,10 +276,11 @@ temperatures, CPU frequency) stay empty on a Docker VM.
 
 ## Acceptance criteria
 
-1. `kubectl kustomize infrastructure/devops-cs` renders 9 ConfigMaps named
+1. `kubectl kustomize infrastructure/devops-cs` renders 7 ConfigMaps named
    `dashboard-*` in `monitoring`, each with label `grafana_dashboard: "1"` and
-   a `grafana_folder` annotation (2 `Overview`, 2 `SLOs`, 5 `Components`). The
-   chart render has no sync-job Job.
+   a `grafana_folder` annotation (2 `Overview`, 5 `Components`). The chart
+   render has no sync-job Job, and its `download-dashboards` script fetches
+   grafana.com 14643 revision 2 and 14348 revision 5 into folder `SLOs`.
 2. The regenerated rules add only the metadata rules (the SLI rules are
    unchanged); vmalert reports 60 rules and 0 errors.
 3. `flux get kustomizations` and `flux get helmreleases -A` show all Ready
@@ -286,8 +297,11 @@ temperatures, CPU frequency) stay empty on a Docker VM.
 
 - The SLO dashboards measure against the 99.9 placeholder; their burn rates and
   budgets mean nothing until real targets are set.
-- The 28-day numbers cover only the data collected so far until 28 days have
+- The 30-day numbers cover only the data collected so far until 30 days have
   passed.
+- Sloth's two dashboards are downloaded at every Grafana start. If grafana.com
+  is unreachable then, Grafana starts without them (the download writes empty
+  files and exits 0; tested) until its next start.
 - Dashboards can't be edited in the UI and saved; changes go through git.
   Exploring in the UI works; saving a copy is lost on restart.
 - Upstream drill-downs are not updated automatically; each is re-downloaded

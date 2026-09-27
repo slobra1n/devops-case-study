@@ -67,6 +67,21 @@ so there was no way to order them.
 - Checked: the real chart 0.93.0 renders the `VMPodScrape` from our values, and
   a version patch in a cluster overlay changes only that cluster.
 
+## Change 5: Sloth defaults, upstream Sloth dashboards
+
+- I don't want hand-rolled or edited dashboards. Sloth's own dashboards were
+  committed with edits because our SLO period was 4 weeks and they assume
+  Sloth's default 30 days.
+- So: keep Sloth's defaults. The SLO period is 30 days (retention 32 days),
+  and the two Sloth dashboards run exactly as published. The only change is
+  the data source, because we use VictoriaMetrics.
+- Grafana downloads them from grafana.com at every start (pinned revisions in
+  `helmrelease.yaml`, `grafana.dashboards`); the chart fills in the data
+  source. Trade-off, accepted: if grafana.com is unreachable when Grafana
+  starts, those two dashboards are missing until the next start.
+- No tool generates a dashboard per SLO outside Grafana Cloud; Sloth and Pyrra
+  both ship generic dashboards that find every SLO by its labels.
+
 ## Where things live
 
 | I want to… | Go to |
@@ -77,7 +92,7 @@ so there was no way to order them.
 | Add an infrastructure component (cert-manager, Loki) | `infrastructure/base/<component>/` + `infrastructure/<cluster>/<component>/` + one line in `infrastructure/<cluster>/kustomization.yaml` |
 | Add a cluster | `clusters/<cluster>/` + a `<layer>/<cluster>/` overlay per layer |
 | Add a new top-level layer folder | Also add `!/<folder>` to `.sourceignore`; Flux only downloads the folders listed there (the `databases/` layer was missing at first: "kustomization path not found") |
-| Add or change a dashboard | `infrastructure/base/monitoring/dashboards/`: the JSON file plus one `configMapGenerator` entry in its `kustomization.yaml` |
+| Add or change a dashboard | `infrastructure/base/monitoring/dashboards/`: the JSON file plus one `configMapGenerator` entry in its `kustomization.yaml`. Sloth's SLO dashboards: grafana.com ID and revision in `helmrelease.yaml` (`grafana.dashboards`) |
 | Use a different dashboard on one cluster | `infrastructure/<cluster>/monitoring/kustomization.yaml`: a `configMapGenerator` entry with the dashboard's name, `namespace: monitoring`, `behavior: replace` and a file with the same name |
 
 ## Known issue: backend 500s after a restart

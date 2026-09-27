@@ -78,16 +78,16 @@ spec:
         sloth_service: backend-api
         sloth_slo: process-availability
         sloth_window: 3d
-    - record: slo:sli_error:ratio_rate4w
+    - record: slo:sli_error:ratio_rate30d
       expr: |
-        sum_over_time(slo:sli_error:ratio_rate5m{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}[4w])
+        sum_over_time(slo:sli_error:ratio_rate5m{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}[30d])
         / ignoring (sloth_window)
-        count_over_time(slo:sli_error:ratio_rate5m{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}[4w])
+        count_over_time(slo:sli_error:ratio_rate5m{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}[30d])
       labels:
         sloth_id: backend-api-process-availability
         sloth_service: backend-api
         sloth_slo: process-availability
-        sloth_window: 4w
+        sloth_window: 30d
   - name: sloth-slo-meta-recordings-backend-api-process-availability
     rules:
     - record: slo:objective:ratio
@@ -103,7 +103,7 @@ spec:
         sloth_service: backend-api
         sloth_slo: process-availability
     - record: slo:time_period:days
-      expr: vector(28)
+      expr: vector(30)
       labels:
         sloth_id: backend-api-process-availability
         sloth_service: backend-api
@@ -119,7 +119,7 @@ spec:
         sloth_slo: process-availability
     - record: slo:period_burn_rate:ratio
       expr: |
-        slo:sli_error:ratio_rate4w{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}
+        slo:sli_error:ratio_rate30d{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}
         / on(sloth_id, sloth_slo, sloth_service) group_left
         slo:error_budget:ratio{sloth_id="backend-api-process-availability", sloth_service="backend-api", sloth_slo="process-availability"}
       labels:
@@ -229,16 +229,16 @@ spec:
         sloth_service: backend-api
         sloth_slo: process-latency
         sloth_window: 3d
-    - record: slo:sli_error:ratio_rate4w
+    - record: slo:sli_error:ratio_rate30d
       expr: |
-        sum_over_time(slo:sli_error:ratio_rate5m{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}[4w])
+        sum_over_time(slo:sli_error:ratio_rate5m{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}[30d])
         / ignoring (sloth_window)
-        count_over_time(slo:sli_error:ratio_rate5m{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}[4w])
+        count_over_time(slo:sli_error:ratio_rate5m{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}[30d])
       labels:
         sloth_id: backend-api-process-latency
         sloth_service: backend-api
         sloth_slo: process-latency
-        sloth_window: 4w
+        sloth_window: 30d
   - name: sloth-slo-meta-recordings-backend-api-process-latency
     rules:
     - record: slo:objective:ratio
@@ -254,7 +254,7 @@ spec:
         sloth_service: backend-api
         sloth_slo: process-latency
     - record: slo:time_period:days
-      expr: vector(28)
+      expr: vector(30)
       labels:
         sloth_id: backend-api-process-latency
         sloth_service: backend-api
@@ -270,7 +270,7 @@ spec:
         sloth_slo: process-latency
     - record: slo:period_burn_rate:ratio
       expr: |
-        slo:sli_error:ratio_rate4w{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}
+        slo:sli_error:ratio_rate30d{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}
         / on(sloth_id, sloth_slo, sloth_service) group_left
         slo:error_budget:ratio{sloth_id="backend-api-process-latency", sloth_service="backend-api", sloth_slo="process-latency"}
       labels:

@@ -6,7 +6,7 @@ slos:
   - name: predict-availability
     alerting:
       name: MlApiPredictAvailability # used once alert rules are generated
-    objective: 99.9 # placeholder, required by Sloth; unused until targets are set
+    objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
     sli:
       events:
         error_query: |
@@ -16,7 +16,7 @@ slos:
   - name: predict-latency
     alerting:
       name: MlApiPredictLatency # used once alert rules are generated
-    objective: 99.9 # placeholder, required by Sloth; unused until targets are set
+    objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
     sli:
       events:
         error_query: |

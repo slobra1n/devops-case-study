@@ -92,16 +92,16 @@ spec:
         sloth_service: ml-api
         sloth_slo: predict-availability
         sloth_window: 3d
-    - record: slo:sli_error:ratio_rate4w
+    - record: slo:sli_error:ratio_rate30d
       expr: |
-        sum_over_time(slo:sli_error:ratio_rate5m{sloth_id="ml-api-predict-availability", sloth_service="ml-api", sloth_slo="predict-availability"}[4w])
+        sum_over_time(slo:sli_error:ratio_rate5m{sloth_id="ml-api-predict-availability", sloth_service="ml-api", sloth_slo="predict-availability"}[30d])
         / ignoring (sloth_window)
-        count_over_time(slo:sli_error:ratio_rate5m{sloth_id="ml-api-predict-availability", sloth_service="ml-api", sloth_slo="predict-availability"}[4w])
+        count_over_time(slo:sli_error:ratio_rate5m{sloth_id="ml-api-predict-availability", sloth_service="ml-api", sloth_slo="predict-availability"}[30d])
       labels:
         sloth_id: ml-api-predict-availability
         sloth_service: ml-api
         sloth_slo: predict-availability
-        sloth_window: 4w
+        sloth_window: 30d
   - name: sloth-slo-meta-recordings-ml-api-predict-availability
     rules:
     - record: slo:objective:ratio
@@ -117,7 +117,7 @@ spec:
         sloth_service: ml-api
         sloth_slo: predict-availability
     - record: slo:time_period:days
-      expr: vector(28)
+      expr: vector(30)
       labels:
         sloth_id: ml-api-predict-availability
         sloth_service: ml-api
@@ -133,7 +133,7 @@ spec:
         sloth_slo: predict-availability
     - record: slo:period_burn_rate:ratio
       expr: |
-        slo:sli_error:ratio_rate4w{sloth_id="ml-api-predict-availability", sloth_service="ml-api", sloth_slo="predict-availability"}
+        slo:sli_error:ratio_rate30d{sloth_id="ml-api-predict-availability", sloth_service="ml-api", sloth_slo="predict-availability"}
         / on(sloth_id, sloth_slo, sloth_service) group_left
         slo:error_budget:ratio{sloth_id="ml-api-predict-availability", sloth_service="ml-api", sloth_slo="predict-availability"}
       labels:
@@ -243,16 +243,16 @@ spec:
         sloth_service: ml-api
         sloth_slo: predict-latency
         sloth_window: 3d
-    - record: slo:sli_error:ratio_rate4w
+    - record: slo:sli_error:ratio_rate30d
       expr: |
-        sum_over_time(slo:sli_error:ratio_rate5m{sloth_id="ml-api-predict-latency", sloth_service="ml-api", sloth_slo="predict-latency"}[4w])
+        sum_over_time(slo:sli_error:ratio_rate5m{sloth_id="ml-api-predict-latency", sloth_service="ml-api", sloth_slo="predict-latency"}[30d])
         / ignoring (sloth_window)
-        count_over_time(slo:sli_error:ratio_rate5m{sloth_id="ml-api-predict-latency", sloth_service="ml-api", sloth_slo="predict-latency"}[4w])
+        count_over_time(slo:sli_error:ratio_rate5m{sloth_id="ml-api-predict-latency", sloth_service="ml-api", sloth_slo="predict-latency"}[30d])
       labels:
         sloth_id: ml-api-predict-latency
         sloth_service: ml-api
         sloth_slo: predict-latency
-        sloth_window: 4w
+        sloth_window: 30d
   - name: sloth-slo-meta-recordings-ml-api-predict-latency
     rules:
     - record: slo:objective:ratio
@@ -268,7 +268,7 @@ spec:
         sloth_service: ml-api
         sloth_slo: predict-latency
     - record: slo:time_period:days
-      expr: vector(28)
+      expr: vector(30)
       labels:
         sloth_id: ml-api-predict-latency
         sloth_service: ml-api
@@ -284,7 +284,7 @@ spec:
         sloth_slo: predict-latency
     - record: slo:period_burn_rate:ratio
       expr: |
-        slo:sli_error:ratio_rate4w{sloth_id="ml-api-predict-latency", sloth_service="ml-api", sloth_slo="predict-latency"}
+        slo:sli_error:ratio_rate30d{sloth_id="ml-api-predict-latency", sloth_service="ml-api", sloth_slo="predict-latency"}
         / on(sloth_id, sloth_slo, sloth_service) group_left
         slo:error_budget:ratio{sloth_id="ml-api-predict-latency", sloth_service="ml-api", sloth_slo="predict-latency"}
       labels:

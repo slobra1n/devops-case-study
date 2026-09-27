@@ -6,7 +6,7 @@ slos:
   - name: process-availability
     alerting:
       name: BackendApiProcessAvailability # used once alert rules are generated
-    objective: 99.9 # placeholder, required by Sloth; unused until targets are set
+    objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
     sli:
       events:
         error_query: sum(increase(backend_api_requests_total{endpoint="/process",status=~"5.."}[{{.window}}])) or vector(0)
@@ -14,7 +14,7 @@ slos:
   - name: process-latency
     alerting:
       name: BackendApiProcessLatency # used once alert rules are generated
-    objective: 99.9 # placeholder, required by Sloth; unused until targets are set
+    objective: 99.9 # placeholder until targets are set; the SLO dashboards' budget and burn rate use it
     sli:
       events:
         error_query: |
