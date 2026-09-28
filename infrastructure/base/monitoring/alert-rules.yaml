@@ -1,0 +1,146 @@
+# Alert rules, as Helm values for the victoria-metrics-k8s-stack HelmRelease:
+# helmrelease.yaml reads this file through valuesFrom. Two parts:
+# - defaultRules: which published rules run (pinned sources, groups and
+#   single rules switched off). Clusters switch off more in their overlay.
+# - extraRules: my own rules for every app, where the published ones leave
+#   gaps.
+# App-specific rules live with the app (apps/base/<app>/alerts.yaml); SLO
+# burn-rate alerts come from each app's slo.yaml through Sloth (sloth.yaml).
+
+# Platform alerts: the chart's published default rules (kube-prometheus and
+# VictoriaMetrics' own), which its sync-job downloads at every Helm upgrade
+# and turns into VMRules. Sources are pinned to the versions that run here
+# (the chart's defaults follow master). The chart already skips the groups
+# of components k3s doesn't expose (apiserver, scheduler, controller-manager,
+# etcd).
+defaultRules:
+  enabled: true
+  groups:
+    # k3s serves the API server's metrics on the kubelet's /metrics.
+    kubernetes-system:
+      labelRewrites:
+        job:
+          match: apiserver
+          value: kubelet
+    # Recording rules only (API server availability); the alerts that
+    # would use them are skipped with the API server scrape.
+    kube-apiserver-availability.rules:
+      enabled: false
+  rules:
+    # The backend's readiness check (SELECT 1) ends in a rollback every
+    # time (the connection pool rolls back on return): 1 rollback per
+    # /ready call, not an application error.
+    PostgresHasTooManyRollbacks:
+      enabled: false
+  sources:
+    alertmanager:
+      url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/alertmanager-prometheusRule.yaml
+    kubernetes-control-plane:
+      url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/kubernetesControlPlane-prometheusRule.yaml
+    kubernetes:
+      url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/kubePrometheus-prometheusRule.yaml
+    kube-state-metrics:
+      url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/kubeStateMetrics-prometheusRule.yaml
+    node-exporter:
+      url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/nodeExporter-prometheusRule.yaml
+    vmhealth:
+      url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/v1.152.0/deployment/docker/rules/alerts-health.yml
+    vmagent:
+      url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/v1.152.0/deployment/docker/rules/alerts-vmagent.yml
+    vmalert:
+      url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/v1.152.0/deployment/docker/rules/alerts-vmalert.yml
+    vmsingle:
+      url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/v1.152.0/deployment/docker/rules/alerts-single-node.yml
+    vmoperator:
+      url: https://raw.githubusercontent.com/VictoriaMetrics/operator/v0.74.1/config/alerting/vmoperator-rules.yaml
+    # Not a chart default: the postgres-exporter mixin's published alerts.
+    # Its board ships with postgres (databases/base/postgres/dashboard.json).
+    postgres-exporter:
+      url: https://raw.githubusercontent.com/monitoring-mixins/website/50c46fcbdb18d37ba036dbf0de55648eb947348b/assets/postgres-exporter/alerts.yaml
+    # VictoriaLogs and VLAgent health, at the version the chart runs (v1.52.0).
+    vlhealth:
+      url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/v1.52.0/deployment/docker/rules/alerts-health.yml
+    vlagent:
+      url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/v1.52.0/deployment/docker/rules/alerts-vlagent.yml
+    victorialogs:
+      url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/v1.52.0/deployment/docker/rules/alerts-vlogs.yml
+# My rules for gaps in the published ones (README, "Alerts and what they
+# catch"). The chart renders each key as VMRule
+# victoria-metrics-k8s-stack-<key>.
+# - workload-alerts: a pod that fails readiness leaves its Service, so the
+#   app's own metrics see no traffic and its SLOs stay green; these rules
+#   watch the pods.
+# - slo-alerts: an SLO that records nothing can never alert.
+# They ship in the chart because a VMRule outside it fails Flux's dry-run on
+# a fresh cluster, before the chart has installed the CRD. extraRules, not
+# extraObjects: the chart runs extraObjects through Helm's tpl, which would
+# evaluate the {{ $labels }} templates; extraRules passes them through.
+extraRules:
+  workload-alerts:
+    groups:
+      - name: workload-alerts
+        rules:
+          # Every workload outside the platform namespaces, so a new app is
+          # covered without a change here. Platform components have the
+          # published TargetDown and KubeDeploymentReplicasMismatch tickets.
+          # keep_firing_for holds the page while a crash-looping pod turns
+          # Ready for a few seconds between restarts.
+          - alert: DeploymentUnavailable
+            expr: |
+              kube_deployment_spec_replicas{namespace!~"kube-system|flux-system|monitoring"} > 0
+              and on (namespace, deployment)
+              kube_deployment_status_replicas_available == 0
+            for: 1m
+            keep_firing_for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.deployment }} has no ready pod"
+              description: "No pod of {{ $labels.namespace }}/{{ $labels.deployment }} has passed its readiness probe for 1 minute, so its Service sends requests nowhere."
+              dashboard: "{{ $externalURL }}/d/85a562078cdf77779eaa1add43ccec1e?var-namespace={{ $labels.namespace }}"
+          - alert: ContainerOOMKilled
+            expr: |
+              increase(kube_pod_container_status_restarts_total[10m]) > 0
+              and on (namespace, pod, container)
+              kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} {{ $labels.container }} was OOM-killed"
+              description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} restarted in the last 10 minutes after reaching its memory limit."
+              dashboard: "{{ $externalURL }}/d/6581e46e4e5c7ba40a07646395ef7b23?var-namespace={{ $labels.namespace }}&var-pod={{ $labels.pod }}"
+          # Catches a slow leak before the OOM kill; a fast one only shows
+          # as ContainerOOMKilled.
+          - alert: ContainerMemoryNearLimit
+            expr: |
+              max by (namespace, pod, container) (container_memory_working_set_bytes{container!=""})
+              / on (namespace, pod, container)
+              max by (namespace, pod, container) (kube_pod_container_resource_limits{resource="memory"})
+              > 0.9
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} {{ $labels.container }} uses {{ $value | humanizePercentage }} of its memory limit"
+              description: "Container {{ $labels.container }} has used more than 90% of its memory limit for 5 minutes. At 100% the kernel kills it."
+              dashboard: "{{ $externalURL }}/d/6581e46e4e5c7ba40a07646395ef7b23?var-namespace={{ $labels.namespace }}&var-pod={{ $labels.pod }}"
+  slo-alerts:
+    groups:
+      - name: slo-alerts
+        rules:
+          # Every SLO Sloth knows (sloth_slo_info) without a 5-minute error
+          # ratio. A misspelled or renamed metric in slo.yaml is valid, so
+          # Sloth and Flux report success while the SLO records nothing.
+          # The same happens when no request reaches the service: the ratio
+          # is 0/0, which VictoriaMetrics drops.
+          # ponytail: 5-minute window, so a service idle for 15 minutes
+          # fires too; give low-traffic services a longer window here.
+          - alert: SLOHasNoData
+            expr: sloth_slo_info unless on (sloth_id) slo:sli_error:ratio_rate5m
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SLO {{ $labels.sloth_service }}/{{ $labels.sloth_slo }} has recorded no data for 15 minutes"
+              description: "Its SLI queries match no series, or no request reached the service. Check the metric names in the service's slo.yaml against its /metrics, then its request rate. Until it records again, none of its burn-rate alerts can fire."
+              dashboard: "{{ $externalURL }}/d/slo-detail?var-service={{ $labels.sloth_service }}&var-slo={{ $labels.sloth_slo }}"

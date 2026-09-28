@@ -338,7 +338,7 @@ a 50m CPU limit.
 | Source | Catches |
 |---|---|
 | Sloth, from each `slo.yaml` | An SLO burning its error budget. A fast burn (14.4 times the sustainable rate over 5 minutes and 1 hour) pages; a slow burn opens a ticket. A page silences the ticket of the same SLO. |
-| My rules in `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml` | `DeploymentUnavailable` (page): an app has had no ready pod for 1 minute. `ContainerOOMKilled` (ticket): a container restarted after reaching its memory limit. `ContainerMemoryNearLimit` (ticket): above 90% of the limit for 5 minutes. `SLOHasNoData` (ticket): an SLO has recorded no error ratio for 15 minutes, because its queries match nothing or no request reached the service; until it records again, its burn-rate alerts can't fire. |
+| My rules in `extraRules` in `infrastructure/base/monitoring/alert-rules.yaml` | `DeploymentUnavailable` (page): an app has had no ready pod for 1 minute. `ContainerOOMKilled` (ticket): a container restarted after reaching its memory limit. `ContainerMemoryNearLimit` (ticket): above 90% of the limit for 5 minutes. `SLOHasNoData` (ticket): an SLO has recorded no error ratio for 15 minutes, because its queries match nothing or no request reached the service; until it records again, its burn-rate alerts can't fire. |
 | My rules in `apps/base/backend-api/alerts.yaml` | `BackendDbPoolNearlyFull` (ticket): a pod has held 8 of its 10 connections for 1 minute. `BackendDbQueryErrors` (ticket): queries failed or found no free connection. |
 | Published rules, pinned: kube-prometheus, VictoriaMetrics' and VictoriaLogs' own rules, the postgres-exporter mixin | Node, Kubernetes objects (crash loops, pods not ready, missing replicas), postgres-exporter, the monitoring and logging stack. |
 | Flux's notification-controller | A Flux object that fails to apply or to become healthy (ticket), for example: a manifest the cluster rejects (the VictoriaMetrics operator's admission check refuses an invalid rule), an `slo.yaml` Sloth can't turn into rules, or a Deployment that never becomes ready. |
@@ -551,12 +551,12 @@ docs/                      agent working notes (specs, plans), the first inspect
 | See how a component is defined | `<layer>/base/<component>/` |
 | Change something for one cluster (version, Secret, size) | `<layer>/<cluster>/<component>/` |
 | See what a cluster runs and in what order | `clusters/<cluster>/` |
-| See what tools generate (don't edit it: the tool overwrites it; change the source) | In git: only `clusters/<cluster>/flux-system/gotk-*.yaml`, written by `flux bootstrap`. In the cluster: Sloth's rules, `kubectl get prometheusrules,vmrules -n <app>` (source: `apps/base/<app>/slo.yaml`); the chart sync job's rules and boards, `kubectl -n monitoring get vmrules,configmaps -l app.kubernetes.io/managed-by=sync-job` (source: `defaultRules` and `defaultDashboards` in `helmrelease.yaml`) |
+| See what tools generate (don't edit it: the tool overwrites it; change the source) | In git: only `clusters/<cluster>/flux-system/gotk-*.yaml`, written by `flux bootstrap`. In the cluster: Sloth's rules, `kubectl get prometheusrules,vmrules -n <app>` (source: `apps/base/<app>/slo.yaml`); the chart sync job's rules and boards, `kubectl -n monitoring get vmrules,configmaps -l app.kubernetes.io/managed-by=sync-job` (source: `defaultRules` in `alert-rules.yaml`, `defaultDashboards` in `helmrelease.yaml`) |
 | Add an infrastructure component (cert-manager, for example) | `infrastructure/base/<component>/` + `infrastructure/<cluster>/<component>/` + one line in `infrastructure/<cluster>/kustomization.yaml` |
 | Add a cluster | `clusters/<cluster>/` + a `<layer>/<cluster>/` overlay per layer |
 | Add a top-level layer folder | Also add `!/<folder>` to `.sourceignore`: Flux downloads only the folders listed there |
 | Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
-| Change an alert rule | SLO alerts: the target in `slo.yaml`, the plugin chain in `sloth.yaml`. My platform-wide rules: `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml`; app-specific ones: `apps/base/<app>/alerts.yaml`. Published rules: `defaultRules` in `helmrelease.yaml` (`rules.<AlertName>.enabled: false` switches one off; per cluster in the overlay) |
+| Change an alert rule | SLO alerts: the target in `slo.yaml`, the plugin chain in `sloth.yaml`. My rules for every app: `extraRules` in `infrastructure/base/monitoring/alert-rules.yaml`; app-specific ones: `apps/base/<app>/alerts.yaml`. Published rules: `defaultRules` in the same `alert-rules.yaml` (`rules.<AlertName>.enabled: false` switches one off; per cluster in the overlay) |
 | Change where alerts go | `infrastructure/base/monitoring/alertmanager-config.yaml`: routes, receivers, inhibitions |
 | Add or change a dashboard | An app's board: `apps/base/<app>/dashboard.json` plus the `configMapGenerator` entry in that app's `kustomization.yaml` ([how](#change-an-app-board)). Postgres' board: `databases/base/postgres/dashboard.json`, the same way. Flux's board: `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's boards: `defaultDashboards` in `helmrelease.yaml`. Sloth's boards: `grafana.dashboards` (grafana.com ID and revision) |
 | Use a different dashboard on one cluster | A `configMapGenerator` entry with the same name and `behavior: replace` in the cluster's overlay of the board's layer: `apps/<cluster>/<app>/`, `databases/<cluster>/postgres/` or `infrastructure/<cluster>/monitoring/`. A HelmRelease patch of `defaultDashboards` for a chart board |
@@ -572,8 +572,9 @@ go with the app. Postgres' board, the one postgres-exporter publishes, sits in
 Alert rules need one exception. The `databases` layer doesn't wait for
 `infrastructure`, so on a fresh cluster Flux would reject a `VMRule` there
 before the chart has installed its type. Postgres' published alerts therefore
-stay in the chart's `defaultRules`, next to the other published rules. App
-alerts don't have this problem: `apps` waits for `infrastructure`.
+stay in the chart's `defaultRules` (`alert-rules.yaml`), next to the other
+published rules. App alerts don't have this problem: `apps` waits for
+`infrastructure`.
 
 Everything shared lives with the monitoring stack in
 `infrastructure/base/monitoring/`: my rules for every app, the Sloth settings,
