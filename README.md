@@ -246,10 +246,11 @@ describes, and add three things:
 3. **Read-only boards in production.** People try panels out in the UI and
    commit the result, as above.
    [Git Sync](https://grafana.com/docs/grafana/latest/as-code/observability-as-code/git-sync/),
-   generally available since April 2026, turns a save in the UI into a pull
-   request. It syncs one repository path per connection, though, and Grafana
-   advises against a connection per team or service, so it suits a central
-   dashboards repository better than boards spread across service folders.
+   generally available since April 2026, can turn a save in the UI into a pull
+   request instead of a direct commit. It syncs one repository path per
+   connection, though, and Grafana advises against a connection per team or
+   service, so it suits a central dashboards repository better than boards
+   spread across service folders.
 
 ### Logs
 
@@ -271,9 +272,9 @@ health, not log content.
 - **Loki wouldn't save the level rules below.** Loki 3.6 reads a `level`
   field from JSON and logfmt lines. In plain text it searches for fixed words
   and checks `info` first. It misses the apps' `ERROR:` lines, postgres'
-  `ERROR:` and VictoriaMetrics' tab-separated levels, and it tags any line
-  that contains "info" (a URL, `sloth_slo_info`) as info. Fixing that takes
-  regex rules in Alloy: the same rules in another place.
+  `ERROR:` and VictoriaMetrics' tab-separated `warn` and `error`, and it tags
+  any line that contains "info" (a URL, `sloth_slo_info`) as info. Fixing that
+  takes regex rules in Alloy: the same rules in another place.
 - **What I give up:** Grafana's Logs Drilldown app, which works only with
   Loki, and a built-in data source. Grafana downloads the VictoriaLogs plugin
   at start.

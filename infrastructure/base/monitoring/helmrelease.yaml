@@ -24,12 +24,13 @@ spec:
     victoria-metrics-operator:
       operator:
         enable_converter_ownership: true
-    # Dashboards come from three places: ConfigMaps in git (dashboards/), the
-    # chart's published set (defaultDashboards below) and grafana.com (Sloth's,
-    # below). The sidecar puts each ConfigMap into the folder its grafana_folder
-    # annotation names. No persistence: every dashboard is provisioned, so a
-    # restart loses nothing. Grafana 13's six default plugins (drilldown apps,
-    # extra data sources) are disabled; the one plugin installed is VictoriaLogs'
+    # Dashboards come from three places: ConfigMaps in git (dashboards/ here,
+    # and each app's own board in its namespace), the chart's published set
+    # (defaultDashboards below) and grafana.com (Sloth's, below). The sidecar
+    # puts each ConfigMap into the folder its grafana_folder annotation names.
+    # No persistence: every dashboard is provisioned, so a restart loses
+    # nothing. Grafana 13's six default plugins (drilldown apps, extra data
+    # sources) are disabled; the one plugin installed is VictoriaLogs'
     # data source, pinned, in the background after start: without grafana.com
     # Grafana still starts, only the logs data source is missing until the next
     # start. (The chart's `plugins` value would install it before start, and

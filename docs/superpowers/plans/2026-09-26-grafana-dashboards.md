@@ -90,7 +90,7 @@ In `docs/superpowers/specs/2026-09-26-slo-sli-design.md`:
 ```markdown
 - **Scope:** SLI recording rules evaluated by vmalert, and Alertmanager
   routing. The metadata rules the SLO dashboards read came with the
-  [dashboards spec](2026-09-26-grafana-dashboards-design.md). SLO targets,
+  [dashboards spec](../specs/2026-09-26-grafana-dashboards-design.md). SLO targets,
   burn-rate alerts, notification channels, the SLO document and the error
   budget policy come later.
 ```
@@ -382,7 +382,7 @@ In `docs/superpowers/specs/2026-09-26-victoriametrics-metrics-collection-design.
 - Components table: replace `| Grafana, default rules, default dashboards | off | Out of scope |` with
 
 ```markdown
-| Grafana | on | Dashboards provisioned from git, no persistence, nothing downloaded at startup ([dashboards spec](2026-09-26-grafana-dashboards-design.md)) |
+| Grafana | on | Dashboards provisioned from git, no persistence, nothing downloaded at startup ([dashboards spec](../specs/2026-09-26-grafana-dashboards-design.md)) |
 | Default rules, default dashboards, dashboard sync job | off | Rules and dashboards come from this repo |
 ```
 

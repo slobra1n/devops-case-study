@@ -101,4 +101,3 @@ Step 0 is complete when:
 7. The user has reviewed the findings before the next monitoring design begins.
 
 An unavailable prerequisite, unsupported image, or inaccessible runtime is a blocker, not a passing result. Record the exact failure and attempts to resolve it; finish any independent inspection that remains possible without claiming Step 0 complete.
-
