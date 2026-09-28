@@ -11,7 +11,8 @@ The case study asks three questions, answered in these sections:
 - [What I monitor and why](#what-i-monitor-and-why), including
   [SLOs with Sloth](#why-slos-with-sloth), [dashboards](#dashboards) and
   [logs](#logs)
-- [Alerts and what they catch](#alerts-and-what-they-catch)
+- [Alerts and what they catch](#alerts-and-what-they-catch), including
+  [how I tested them](#how-i-tested-the-alerts)
 - [Trade-offs](#decisions-and-trade-offs) and
   [what I'd do with more time](#with-more-time)
 
@@ -410,35 +411,84 @@ under [99% targets](#decisions-and-trade-offs).
 To change an SLO's target or name, edit its `slo.yaml`. The windows and
 factors are Sloth's defaults and the same for every SLO.
 
-### Incidents and the alerts they raise
+### How I tested the alerts
 
-The app images have environment switches that cause incidents. I ran each
-incident below on the cluster (the ml-api switches, the broken files, the
-burning SLO and the memory hold in a scratch namespace). Times count from the
-change:
+I checked every rule offline first and relied on it only after it had fired
+on this cluster. Every rule I wrote and both Sloth severities have fired at
+least once. I didn't fault-test the published rules; I ran the cluster with
+them and switched off the ones that fire without a real problem.
 
-| Incident | Alerts, in order |
-|---|---|
-| backend-api leaks DB connections (`CONN_RETURN_MODE=hold`) | 2.5 min: `BackendDbQueryErrors` (`pool_exhausted`). 3 min: `BackendDbPoolNearlyFull`. 4 min: `DeploymentUnavailable` page. No SLO alert: 6 requests got a 503, then none reached the app. |
-| ml-api leaks memory (`MEM_ALLOC_MB`; tested with 20 MB every 2 s and a 128Mi limit) | 80 s: `ContainerOOMKilled`. 3.7 min: `DeploymentUnavailable` page, once the restart backoff keeps the pod down for a minute. A slow leak raises `ContainerMemoryNearLimit` before the kill. |
-| ml-api fails its liveness probe (`HEALTH_TTL_SECONDS=30`) | The kubelet restarts both pods about once a minute. 7 min: `KubePodCrashLooping` pending (a ticket 15 minutes later). 8 min: `DeploymentUnavailable` page, once the backoff keeps both pods down for a minute. |
-| Traffic stops (load generator scaled to 0) | 5.5 min: the SLOs' 5-minute ratios stop, because 0/0 records nothing. About 21 min: `SLOHasNoData` for every SLO of both apps (tested with a shorter wait; the rule waits 15 minutes). |
-| An `slo.yaml` Sloth can't turn into rules | Under 2 min: `FluxKustomizationHealthcheckfailed`, and the Kustomization isn't Ready. |
-| An `slo.yaml` with a misspelled metric name | Sloth and Flux report success. About 20 min: `SLOHasNoData` for that SLO only (tested with a shorter wait). |
-| An alert rule with an invalid expression | The admission check rejects it, nothing reaches vmalert. Under 2 min: `FluxKustomizationReconciliationfailed`. |
-| An SLO burns its budget (a scratch SLO that counts every request as bad) | 35 s after Sloth wrote its rules: its page and its ticket fire together. Alertmanager sends the page to `page`, and the page suppresses the ticket. |
-| A container holds 93% of its memory limit | 6.4 min: `ContainerMemoryNearLimit` (a 5-minute wait, plus scraping). |
+**Offline, before a rule reached the cluster:**
 
-`DeploymentUnavailable` stays firing for 5 minutes after the pods recover
-(`keep_firing_for`), so a crash loop pages once instead of flapping.
+- `vmalert -dryRun`, with the version that runs here (v1.152.0), parsed my
+  rule files.
+- A server-side dry run (`kubectl apply --dry-run=server`) passed each
+  `VMRule` through the VictoriaMetrics operator's admission check.
+- `amtool check-config` validated the Alertmanager config, and `amtool config
+  routes test` sent sample labels through the routes: Sloth's page and
+  `severity=critical` reach `page`; Sloth's ticket, `warning` and Flux's
+  `severity=error` reach `ticket`; `Watchdog` reaches `watchdog` and
+  `InfoInhibitor` reaches `null`.
 
-These follow from the rule definitions; I didn't run them:
+**On the cluster.** The app images have switches that cause incidents
+(`CONN_RETURN_MODE`, `MEM_ALLOC_MB`, `HEALTH_TTL_SECONDS`,
+`RESPONSE_OVERHEAD_MS`, `QUERY_OVERHEAD_MS`). I caused each incident in one
+of three ways:
+
+- **On the real app:** suspend the `apps` Kustomization so Flux doesn't undo
+  the change, set the switch with `kubectl set env` or scale the load
+  generator to 0, then undo it and resume `apps`.
+- **In a scratch namespace:** throwaway Deployments from the app images with a
+  switch set or a command that allocates memory, and throwaway SLOs. Deleting
+  the namespace removes everything, including the rules Sloth generated.
+- **Through a throwaway Flux Kustomization** pointing at a scratch folder with
+  a broken file, to see what Flux reports.
+
+A script polled vmalert's `/api/v1/alerts` every 10 seconds and logged when
+each alert turned pending and then firing. Alertmanager's API then showed
+which receiver got each alert and whether it was suppressed. Times count from
+the change. `SLOHasNoData` waits 15 minutes, so I tested a copy with a
+2-minute wait and added the difference. After each test I checked that only
+the alerts of a healthy cluster were left.
+
+| Incident | How I caused it | Alerts, in order |
+|---|---|---|
+| backend-api leaks DB connections | `CONN_RETURN_MODE=hold` on the real backend-api | 2.5 min: `BackendDbQueryErrors` (`pool_exhausted`). 3 min: `BackendDbPoolNearlyFull`. 4 min: `DeploymentUnavailable` page. No SLO alert: 6 requests got a 503, then none reached the app. |
+| ml-api leaks memory | Scratch ml-api, `MEM_ALLOC_MB=20` every 2 s, 128Mi limit | 80 s: `ContainerOOMKilled`. 3.7 min: `DeploymentUnavailable` page, once the restart backoff keeps the pod down for a minute. |
+| A container runs out of memory at start | Scratch pod allocating 200 MiB under a 64Mi limit | 90 s: `ContainerOOMKilled`. 2.5 min: `DeploymentUnavailable` page. |
+| A container sits near its memory limit | Scratch pod holding 93% of a 128Mi limit | 6.4 min: `ContainerMemoryNearLimit` (a 5-minute wait, plus scraping). |
+| ml-api fails its liveness probe | Scratch ml-api, `HEALTH_TTL_SECONDS=30`, 2 replicas | The kubelet restarts both pods about once a minute. 7 min: `KubePodCrashLooping` pending (a ticket 15 minutes later). 8 min: `DeploymentUnavailable` page, once the backoff keeps both pods down for a minute. |
+| An SLO burns its budget | Scratch SLO whose error query counts every request | 35 s after Sloth wrote its rules: its page and its ticket. The page reached `page`; the ticket reached `ticket`, suppressed by the page. |
+| Traffic stops | Load generator scaled to 0 | 5.5 min: the SLOs' 5-minute ratios stop, because 0/0 records nothing. About 21 min: `SLOHasNoData` for every SLO of both apps. |
+| An `slo.yaml` Sloth can't turn into rules | Throwaway Kustomization, an SLO with a broken query | Under 2 min: `FluxKustomizationHealthcheckfailed` (ticket), and the Kustomization isn't Ready. |
+| An `slo.yaml` with a misspelled metric name | Throwaway Kustomization, a copy of ml-api's SLO with one metric misspelled | Sloth and Flux report success. About 20 min: `SLOHasNoData` (ticket) for that SLO only. |
+| An alert rule with an invalid expression | Throwaway Kustomization, a `VMRule` that doesn't parse | The admission check rejects it; nothing reaches vmalert. Under 2 min: `FluxKustomizationReconciliationfailed` (ticket). |
+| A Kustomization points at a missing path | Throwaway Kustomization | `FluxKustomizationArtifactfailed` (ticket). |
+
+What the tests changed:
+
+- The first liveness-probe run paged, resolved and paged again, because a
+  crash-looping pod is Ready for a moment between restarts.
+  `DeploymentUnavailable` now keeps firing for 5 minutes after the pods
+  recover (`keep_firing_for`). A rerun over 8 minutes paged once, and the page
+  resolved about 5.5 minutes after recovery.
+- The connection-leak run confirmed that the SLOs miss an outage in which the
+  pods fail readiness, which is why `DeploymentUnavailable` and the pool
+  alerts exist.
+- The traffic-stop run showed that `SLOHasNoData` also fires for a service
+  that gets no requests.
+- Running the published rules here turned up three that fire without a real
+  problem; they're off ([Known issues](#known-issues)).
+
+Not run; these follow from the rule definitions:
 
 | Incident | Alerts |
 |---|---|
 | ml-api or backend-api gets slow (`RESPONSE_OVERHEAD_MS`, `QUERY_OVERHEAD_MS`) | Latency SLO page once 14.4% of the last hour's requests were slow: about 9 minutes when every request is slow. |
 | backend-api answers 500 with its pods Ready (missing `documents` table) | `BackendDbQueryErrors` (`error`) within about a minute, then the availability SLO page, about 9 minutes after every request started failing. |
 | postgres down | `PostgreSQLDown` after 1 minute. backend-api's `/ready` fails, so `DeploymentUnavailable` pages for backend-api. |
+
+Nothing leaves Alertmanager yet, so delivery to a pager or chat is untested.
 
 ## Decisions and trade-offs
 
