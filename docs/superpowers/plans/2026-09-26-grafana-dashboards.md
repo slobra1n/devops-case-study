@@ -1,5 +1,9 @@
 # Grafana Dashboards Implementation Plan
 
+> Working note from building this with AI agents; not canonical. The
+> manifests and the [README](../../../README.md) are, and they win where
+> this file disagrees with them.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Grafana with 9 dashboards provisioned from git: Sloth's two SLO dashboards (fed by new Sloth metadata rules), our Apps and Platform boards, and five pinned upstream drill-downs.

@@ -1,5 +1,9 @@
 # Alerting
 
+> Working note from building this with AI agents; not canonical. The
+> manifests and the [README](../../../README.md) are, and they win where
+> this file disagrees with them.
+
 ## Goal
 
 Alert on what users feel (SLO burn rates) and on what breaks the platform

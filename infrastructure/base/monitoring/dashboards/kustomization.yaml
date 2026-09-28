@@ -1,4 +1,4 @@
-# Grafana dashboards kept in git (docs/superpowers/specs/2026-09-26-grafana-dashboards-design.md).
+# Grafana dashboards kept in git.
 # Each file becomes a ConfigMap; Grafana's sidecar loads every ConfigMap labelled
 # grafana_dashboard=1 into the folder named by its grafana_folder annotation.
 # Not here: the chart's published boards (defaultDashboards in ../helmrelease.yaml)

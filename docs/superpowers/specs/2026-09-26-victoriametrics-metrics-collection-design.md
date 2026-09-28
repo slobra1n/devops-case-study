@@ -1,5 +1,9 @@
 # VictoriaMetrics metrics collection
 
+> Working note from building this with AI agents; not canonical. The
+> manifests and the [README](../../../README.md) are, and they win where
+> this file disagrees with them.
+
 ## Goal
 
 Collect metrics from every pod in the cluster into VictoriaMetrics with one

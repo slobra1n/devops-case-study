@@ -1,5 +1,9 @@
 # SLIs and SLO groundwork (Google SRE workbook)
 
+> Working note from building this with AI agents; not canonical. The
+> manifests and the [README](../../../README.md) are, and they win where
+> this file disagrees with them.
+
 ## Goal
 
 Measure the user-facing SLIs of ml-api and backend-api the way the Google SRE

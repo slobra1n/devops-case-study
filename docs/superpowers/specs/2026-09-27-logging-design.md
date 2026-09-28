@@ -1,5 +1,9 @@
 # Logs with VictoriaLogs
 
+> Working note from building this with AI agents; not canonical. The
+> manifests and the [README](../../../README.md) are, and they win where
+> this file disagrees with them.
+
 ## Goal
 
 Every container's log in one place, searchable next to the metrics in

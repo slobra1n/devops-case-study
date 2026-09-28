@@ -1,5 +1,9 @@
 # Grafana dashboards
 
+> Working note from building this with AI agents; not canonical. The
+> manifests and the [README](../../../README.md) are, and they win where
+> this file disagrees with them.
+
 ## Goal
 
 Dashboards for three purposes: choosing SLO targets, drilling into a

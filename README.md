@@ -125,12 +125,10 @@ kube-state-metrics), the node (node-exporter), the monitoring stack itself and
 every pod annotated `prometheus.io/scrape`: both APIs on `:8000/metrics` and
 postgres-exporter on `:9187`. One annotation rule covers every pod, so a new
 app needs no monitoring change to be scraped. VMSingle keeps 31 days.
-[Metrics spec](docs/superpowers/specs/2026-09-26-victoriametrics-metrics-collection-design.md).
 
 **SLOs.** Four SLOs, each 99% over a rolling 30 days, from the apps' own
 metrics. Each app keeps its SLOs in its own `slo.yaml`, and the Sloth
 controller turns them into recording and alert rules.
-[SLO spec](docs/superpowers/specs/2026-09-26-slo-sli-design.md).
 
 | Service | SLO | Bad event |
 |---|---|---|
@@ -155,13 +153,11 @@ you from "is something wrong" to "which component":
 I wrote the apps board; every other board comes unedited from a published
 upstream project, pinned to the version that runs here. Alerts link to the
 board that explains them.
-[Dashboards spec](docs/superpowers/specs/2026-09-26-grafana-dashboards-design.md).
 
 ### Logs
 
 VLAgent reads every container's log on the node, and VLSingle keeps 31 days.
 Alerts cover the logging stack's own health, not log content.
-[Logging spec](docs/superpowers/specs/2026-09-27-logging-design.md).
 
 ## Alerts and what they catch
 
@@ -169,7 +165,6 @@ Every alert has a severity. Alertmanager sends Sloth's fast burns and
 `severity=critical` to the receiver `page`, and everything else to `ticket`.
 No receiver has an integration yet, so you see alerts in Alertmanager and
 Grafana only. `Watchdog` fires all the time to prove the pipeline works.
-[Alerting spec](docs/superpowers/specs/2026-09-27-alerting-design.md).
 
 | Source | Catches |
 |---|---|
@@ -342,26 +337,23 @@ docs/                      agent working notes (specs, plans), the first inspect
 
 ## Working notes
 
-This README is the documentation; you need nothing else to run or understand
-the setup.
+The manifests in this repository and this README are the canonical
+description of the setup. You need nothing else to run or understand it.
 
 I built this with AI coding agents. [`docs/superpowers/`](docs/superpowers/)
-is my scratch pad from that work, kept to show how I got to each decision.
-The folder name comes from Superpowers, the agent skill set that wrote it. In
-a team repository I'd delete the folder once the work is done and keep the
-decisions in this README.
+is my scratch pad from that work: the design I agreed with the agent before
+each step (`specs/`) and its task lists (`plans/`). The folder name comes from
+Superpowers, the agent skill set that wrote them. I kept them to show how I
+got to each decision. They are not canonical: they can be out of date or
+describe options I later dropped, and where they disagree with the manifests
+or this README, those win. In a team repository I'd delete the folder once
+the work is done.
 
-- **Specs** ([`specs/`](docs/superpowers/specs/)): the design I agreed with
-  the agent before each step, with its acceptance checks. I updated them with
-  every later change, so they match the cluster and hold more detail than this
-  README:
-  - [Step 0: environment inspection](docs/superpowers/specs/2026-09-25-step-0-environment-inspection-design.md)
-    and its [findings](docs/inspection/step-0-findings.md)
-  - [Metrics collection](docs/superpowers/specs/2026-09-26-victoriametrics-metrics-collection-design.md)
-  - [SLOs and SLIs](docs/superpowers/specs/2026-09-26-slo-sli-design.md)
-  - [Grafana dashboards](docs/superpowers/specs/2026-09-26-grafana-dashboards-design.md), including the dashboard review
-  - [Alerting](docs/superpowers/specs/2026-09-27-alerting-design.md)
-  - [Logging](docs/superpowers/specs/2026-09-27-logging-design.md)
-- **Plans** ([`plans/`](docs/superpowers/plans/)): the agent's task lists for
-  the first four steps. I didn't update them after later changes, so read
-  them as history.
+- Specs: [Step 0](docs/superpowers/specs/2026-09-25-step-0-environment-inspection-design.md)
+  and its [findings](docs/inspection/step-0-findings.md),
+  [metrics collection](docs/superpowers/specs/2026-09-26-victoriametrics-metrics-collection-design.md),
+  [SLOs](docs/superpowers/specs/2026-09-26-slo-sli-design.md),
+  [dashboards](docs/superpowers/specs/2026-09-26-grafana-dashboards-design.md),
+  [alerting](docs/superpowers/specs/2026-09-27-alerting-design.md),
+  [logging](docs/superpowers/specs/2026-09-27-logging-design.md)
+- Plans: [`plans/`](docs/superpowers/plans/), for the first four steps

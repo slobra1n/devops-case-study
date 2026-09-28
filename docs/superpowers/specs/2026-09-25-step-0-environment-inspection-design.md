@@ -1,5 +1,9 @@
 # Step 0: Set up and inspect the supplied environment
 
+> Working note from building this with AI agents; not canonical. The
+> manifests and the [README](../../../README.md) are, and they win where
+> this file disagrees with them.
+
 ## Purpose and approval boundary
 
 Prepare the Voize case-study environment and gather evidence for the monitoring design. The candidate must be able to explain the running system, the metrics it exposes, and the limits of those measurements during the interview.

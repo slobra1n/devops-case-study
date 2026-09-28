@@ -79,8 +79,7 @@ spec:
             gnetId: 14348
             revision: 5
             datasource: [{name: DS_PROMETHEUS, value: VictoriaMetrics}]
-    # Alert routing (docs/superpowers/specs/2026-09-27-alerting-design.md):
-    # kube-prometheus' published Alertmanager config
+    # Alert routing: kube-prometheus' published Alertmanager config
     # (https://github.com/prometheus-operator/kube-prometheus/blob/v0.19.0/manifests/alertmanager-secret.yaml)
     # plus the Sloth routes. Pages: Sloth fast burn and severity=critical;
     # everything else is a ticket. The receivers have no integrations yet:
@@ -190,8 +189,7 @@ spec:
     # sync-job and pinned the same way. One board per question: kube-prometheus'
     # Compute Resources Cluster -> Namespace (Pods) -> Pod (linked) and Node
     # Exporter / Nodes, plus the VictoriaMetrics and VictoriaLogs boards that the
-    # default alerts link to. Review and reasons:
-    # docs/superpowers/specs/2026-09-26-grafana-dashboards-design.md
+    # default alerts link to.
     defaultDashboards:
       annotations:
         grafana_folder: Components
@@ -277,9 +275,8 @@ spec:
               - {field: _msg, operator: regex, level: warning, value: '^WARNING:|level=(warn|WARN|warning|WARNING)|\twarn\t|\] WARNING:|^\[WARNING\]|^W\d{4} |^\x1b\[\d+mWARN'}
               - {field: _msg, operator: regex, level: info, value: '^INFO:|level=(info|INFO)|\tinfo\t|\] LOG:|^\[INFO\]|^I\d{4} |^\x1b\[\d+mINFO'}
               - {field: _msg, operator: regex, level: debug, value: '^DEBUG:|level=(debug|DEBUG)|\tdebug\t|^\[DEBUG\]|^\x1b\[\d+mDEBU'}
-    # Logs (docs/superpowers/specs/2026-09-27-logging-design.md): VLAgent runs
-    # on every node and ships every container's log to VLSingle. Chart
-    # defaults: retention one month (31 days), 20Gi volume.
+    # Logs: VLAgent runs on every node and ships every container's log to
+    # VLSingle. Chart defaults: retention one month (31 days), 20Gi volume.
     vlsingle:
       enabled: true
     vlagent:
@@ -397,8 +394,7 @@ spec:
     # VMSingle runs on the chart's defaults: retention "1" (one month, which
     # VictoriaMetrics counts as 31 days: the 30-day SLO window and the longest
     # calendar month for the Sloth dashboards) and a 20Gi PVC (about 16 GB at
-    # today's ingest, measured in the SLO spec). Clusters override the PVC in
-    # their overlay.
+    # today's ingest). Clusters override the PVC in their overlay.
     # Objects that use the chart's CRDs. Helm installs the CRDs first, so they
     # can ship in the same release (the chart creates VMAgent/VMSingle the same way).
     extraObjects:
