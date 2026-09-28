@@ -146,6 +146,7 @@ spec:
         vmoperator:
           url: https://raw.githubusercontent.com/VictoriaMetrics/operator/v0.74.1/config/alerting/vmoperator-rules.yaml
         # Not a chart default: the postgres-exporter mixin's published alerts.
+        # Its board ships with postgres (databases/base/postgres/dashboard.json).
         postgres-exporter:
           url: https://raw.githubusercontent.com/monitoring-mixins/website/50c46fcbdb18d37ba036dbf0de55648eb947348b/assets/postgres-exporter/alerts.yaml
         # VictoriaLogs and VLAgent health, at the version the chart runs (v1.52.0).

@@ -197,8 +197,9 @@ without touching the monitoring stack. Grafana's sidecar loads labelled board
 ConfigMaps from every namespace and names each file after its namespace and
 ConfigMap, so every app can keep the file name `dashboard.json`. Every other
 board comes unedited from a published upstream project, pinned to the version
-that runs here, and lives with the monitoring stack
-([why](#where-monitoring-lives)). Alerts link to the board that explains them.
+that runs here. Postgres' board ships next to postgres, the rest with the
+monitoring stack ([why](#where-monitoring-lives)). Alerts link to the board
+that explains them.
 
 #### Change an app board
 
@@ -536,7 +537,7 @@ infrastructure/
   base/monitoring/         monitoring stack, Sloth, alert rules and routing, Flux alerts, dashboards
   devops-cs/               this cluster's selection and patches
 databases/
-  base/postgres/
+  base/postgres/           Deployment with the exporter sidecar, Service, board (dashboard.json)
   devops-cs/               + the postgres Secret
 apps/
   base/<app>/              Deployment, Service, SLOs (slo.yaml), board (dashboard.json), own alerts if needed (alerts.yaml)
@@ -557,36 +558,34 @@ docs/                      agent working notes (specs, plans), the first inspect
 | Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
 | Change an alert rule | SLO alerts: the target in `slo.yaml`, the plugin chain in `sloth.yaml`. My platform-wide rules: `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml`; app-specific ones: `apps/base/<app>/alerts.yaml`. Published rules: `defaultRules` in `helmrelease.yaml` (`rules.<AlertName>.enabled: false` switches one off; per cluster in the overlay) |
 | Change where alerts go | `infrastructure/base/monitoring/alertmanager-config.yaml`: routes, receivers, inhibitions |
-| Add or change a dashboard | An app's board: `apps/base/<app>/dashboard.json` plus the `configMapGenerator` entry in that app's `kustomization.yaml` ([how](#change-an-app-board)). A component's board (Flux, Postgres): `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's boards: `defaultDashboards` in `helmrelease.yaml`. Sloth's boards: `grafana.dashboards` (grafana.com ID and revision) |
-| Use a different dashboard on one cluster | A `configMapGenerator` entry with the same name and `behavior: replace` in the cluster's overlay: `apps/<cluster>/<app>/kustomization.yaml` for an app's board, `infrastructure/<cluster>/monitoring/kustomization.yaml` for a component's. A HelmRelease patch of `defaultDashboards` for a chart board |
+| Add or change a dashboard | An app's board: `apps/base/<app>/dashboard.json` plus the `configMapGenerator` entry in that app's `kustomization.yaml` ([how](#change-an-app-board)). Postgres' board: `databases/base/postgres/dashboard.json`, the same way. Flux's board: `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's boards: `defaultDashboards` in `helmrelease.yaml`. Sloth's boards: `grafana.dashboards` (grafana.com ID and revision) |
+| Use a different dashboard on one cluster | A `configMapGenerator` entry with the same name and `behavior: replace` in the cluster's overlay of the board's layer: `apps/<cluster>/<app>/`, `databases/<cluster>/postgres/` or `infrastructure/<cluster>/monitoring/`. A HelmRelease patch of `defaultDashboards` for a chart board |
 
 ### Where monitoring lives
 
-Monitoring I wrote for one app ships with the app in `apps/base/<app>/`: its
-SLOs, its board and, only if it needs them, its own alerts. The app's team
-owns and changes these files, and they come and go with the app.
+A board lives next to what it shows. Monitoring I wrote for one app ships with
+the app in `apps/base/<app>/`: its SLOs, its board and, only if it needs them,
+its own alerts. The app's team owns and changes these files, and they come and
+go with the app. Postgres' board, the one postgres-exporter publishes, sits in
+`databases/base/postgres/` the same way.
+
+Alert rules need one exception. The `databases` layer doesn't wait for
+`infrastructure`, so on a fresh cluster Flux would reject a `VMRule` there
+before the chart has installed its type. Postgres' published alerts therefore
+stay in the chart's `defaultRules`, next to the other published rules. App
+alerts don't have this problem: `apps` waits for `infrastructure`.
 
 Everything shared lives with the monitoring stack in
 `infrastructure/base/monitoring/`: my rules for every app, the Sloth settings,
-the alert routing, and the published rules and boards for shared components
-(Flux, postgres and the stack itself), pinned in one place. The monitoring of
-Flux and postgres stays there too, although both have a folder elsewhere:
+the alert routing, the published rules, and the boards of the stack itself.
 
-- **Flux:** `flux bootstrap` writes `clusters/<cluster>/flux-system/`, once
-  per cluster and with no `base/`. The Flux board also reads
-  `gotk_resource_info`, which exists only because of the kube-state-metrics
-  settings in `helmrelease.yaml`, and the Flux alert sends to the stack's
-  Alertmanager. Flux's own
-  [monitoring example](https://github.com/fluxcd/flux2-monitoring-example)
-  keeps its dashboards and those settings under `monitoring/` as well.
-- **Postgres:** its board and its alerts come from one upstream package, the
-  postgres-exporter mixin. The alerts can't move to `databases/`: that layer
-  doesn't wait for `infrastructure`, so on a fresh cluster Flux would reject a
-  `VMRule` there before the chart has installed its type. Moving only the
-  board would split the package in two.
-
-If a separate team owned the database and wrote its own board, that board
-would move to `databases/base/postgres/`, like the app boards.
+Flux's board and alert live there too. Flux's own folder,
+`clusters/<cluster>/flux-system/`, exists once per cluster with no `base/`, so
+a board there would need a copy per cluster. The board also reads
+`gotk_resource_info`, which exists only because of the kube-state-metrics
+settings in `helmrelease.yaml`, and Flux's own
+[monitoring example](https://github.com/fluxcd/flux2-monitoring-example) keeps
+its dashboards under `monitoring/` as well.
 
 ## Working notes
 

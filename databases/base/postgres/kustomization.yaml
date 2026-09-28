@@ -5,3 +5,20 @@ resources:
   - configmap.yaml
   - deployment.yaml
   - service.yaml
+# postgres' Grafana board. Grafana's sidecar loads every ConfigMap labelled
+# grafana_dashboard=1 in any namespace, into the folder named by grafana_folder.
+# Upstream, unedited, at the exporter's version. To update, download again at
+# the new pin:
+# https://github.com/prometheus-community/postgres_exporter/blob/v0.20.1/postgres_mixin/dashboards/postgres-overview.json
+# The same mixin's alerts stay in the monitoring chart (defaultRules in
+# infrastructure/base/monitoring/helmrelease.yaml): this layer doesn't wait for
+# the chart's CRDs.
+configMapGenerator:
+  - name: dashboard-postgres
+    namespace: postgres
+    files: [dashboard.json]
+    options:
+      labels: {grafana_dashboard: "1"}
+      annotations: {grafana_folder: Components}
+generatorOptions:
+  disableNameSuffixHash: true # nothing mounts it by name

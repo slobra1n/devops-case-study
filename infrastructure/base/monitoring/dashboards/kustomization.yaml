@@ -2,9 +2,10 @@
 # Each file becomes a ConfigMap; Grafana's sidecar loads every ConfigMap labelled
 # grafana_dashboard=1 into the folder named by its grafana_folder annotation.
 # Not here: each app's own board (apps/base/<app>/dashboard.json, shipped with
-# the app), the chart's published boards (defaultDashboards in
-# ../helmrelease.yaml) and the Sloth SLO dashboards Grafana downloads from
-# grafana.com (grafana.dashboards in ../helmrelease.yaml).
+# the app), postgres' board (databases/base/postgres/dashboard.json), the
+# chart's published boards (defaultDashboards in ../helmrelease.yaml) and the
+# Sloth SLO dashboards Grafana downloads from grafana.com (grafana.dashboards
+# in ../helmrelease.yaml).
 # Clusters replace one in their overlay with a configMapGenerator entry of the
 # same name and `behavior: replace`.
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -19,8 +20,4 @@ configMapGenerator:
   # https://github.com/fluxcd/flux2-monitoring-example/blob/7ab65dc8b90f7a6751d88f18bbb4e1bee33bf334/monitoring/configs/dashboards/cluster.json
   - name: dashboard-flux-cluster
     files: [components/flux-cluster.json]
-    options: {annotations: {grafana_folder: Components}}
-  # https://github.com/prometheus-community/postgres_exporter/blob/v0.20.1/postgres_mixin/dashboards/postgres-overview.json
-  - name: dashboard-postgres
-    files: [components/postgres.json]
     options: {annotations: {grafana_folder: Components}}
