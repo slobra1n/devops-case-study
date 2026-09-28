@@ -198,11 +198,12 @@ Alerts cover the logging stack's own health, not log content.
 Every alert has a severity. Alertmanager sends Sloth's fast burns and
 `severity=critical` to the receiver `page`, and everything else to `ticket`.
 No receiver has an integration yet, so you see alerts in Alertmanager and
-Grafana only. `Watchdog` fires all the time to prove the pipeline works. Two
-info alerts also fire on a healthy cluster, and Alertmanager keeps them
-silent: `InfoInhibitor`, and `RecordingRulesNoData` for `count:up0`, because
+Grafana only. `Watchdog` fires all the time to prove the pipeline works. Info
+alerts also fire on a healthy cluster, and Alertmanager keeps them silent
+(`InfoInhibitor`): `RecordingRulesNoData` for `count:up0`, because
 kube-prometheus' count of down targets records nothing while every target is
-up.
+up, and at times `CPUThrottlingHigh` for the Sloth controller, whose chart sets
+a 50m CPU limit.
 
 | Source | Catches |
 |---|---|
