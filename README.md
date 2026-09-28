@@ -7,7 +7,8 @@ Sloth. Flux deploys all of it from this repository.
 
 The case study asks three questions, answered in these sections:
 
-- [What I monitor and why](#what-i-monitor-and-why), with the
+- [What I monitor and why](#what-i-monitor-and-why), with
+  [why SLOs with Sloth](#why-slos-with-sloth) and the
   [dashboard design](#dashboards)
 - [Alerts and what they catch](#alerts-and-what-they-catch)
 - [Trade-offs](#decisions-and-trade-offs) and
@@ -126,9 +127,42 @@ every pod annotated `prometheus.io/scrape`: both APIs on `:8000/metrics` and
 postgres-exporter on `:9187`. One annotation rule covers every pod, so a new
 app needs no monitoring change to be scraped. VMSingle keeps 31 days.
 
-**SLOs.** Four SLOs, each 99% over a rolling 30 days, from the apps' own
-metrics. Each app keeps its SLOs in its own `slo.yaml`, and the Sloth
-controller turns them into recording and alert rules.
+### Why SLOs with Sloth
+
+I built the monitoring around SLOs so that it scales with the number of
+services. A team describes what "working" means for its service in one file,
+`slo.yaml`, next to its manifests. The Sloth controller does the rest, and
+every service gets the same things without anyone writing rules or boards:
+
+- recording rules for each SLI over every window from 5 minutes to 30 days;
+- multi-window burn-rate alerts: a page when the service burns its error
+  budget fast, a ticket when it burns slowly. Alertmanager routes them by
+  Sloth's `sloth_severity` label, so a new service needs no routing change;
+- a row on High level Sloth SLOs and its own view on SLO / Detail. Both
+  boards read Sloth's labels, so a new SLO appears without a dashboard change;
+- a Flux health check: an `slo.yaml` that Sloth can't turn into rules fails
+  the `apps` Kustomization.
+
+Teams and management get the same high-level view of every service: is it
+meeting its target, and how much error budget is left over the last 30 days.
+Reading it takes no knowledge of the service's metrics.
+
+To add a service:
+
+1. Expose a request counter with a status label and a latency histogram on
+   `/metrics`, as both apps here do.
+2. Annotate its pods with `prometheus.io/scrape`, `prometheus.io/port` and
+   `prometheus.io/path`; vmagent scrapes every annotated pod.
+3. Copy `apps/base/ml-api/slo.yaml` into the app's folder, change the queries
+   and the target, and list the file in the app's `kustomization.yaml`.
+
+The team still writes two queries per SLO, because every app names its
+metrics its own way, and picks the target, which is a product decision. The
+SLOs count requests inside the app, so an app with no ready pod burns no
+budget; `DeploymentUnavailable` covers that for every workload, also without a
+change. The apps board is the one piece that needs a new row per service.
+
+This cluster runs four SLOs, each 99% over a rolling 30 days:
 
 | Service | SLO | Bad event |
 |---|---|---|
@@ -237,12 +271,17 @@ These follow from the rule definitions; I didn't run them:
   a blackbox probe; I removed the blackbox exporter. The kubelet already
   probes `/health` and `/ready`, and `DeploymentUnavailable` covers the
   outage an in-app SLI misses.
-- **Sloth controller over the Sloth CLI.** Each app ships its SLOs next to its
-  manifests, and nobody generates or commits rules by hand, which scales to
-  many services. Sloth's defaults stay (30-day period), so its dashboards run
-  unedited. Sloth's status has no conditions, so the `apps` Kustomization
-  checks `promOpRulesGenerated` to catch a broken SLO. Trade-off: the
-  generated rules live in the cluster, not in git.
+- **Sloth, run as a controller.** Sloth writes the SRE workbook's
+  multi-window, multi-burn-rate alerts from queries I write, and checks them
+  against VictoriaMetrics' query language. Pyrra, the closest alternative,
+  builds the queries itself from metric selectors. I run Sloth as a
+  controller, not as a CLI in CI: the CLI means generating and committing
+  rules for every SLO change, while the controller reads each `slo.yaml` in
+  the cluster, which is what makes the one-file onboarding above work.
+  Sloth's defaults stay (30-day period), so its dashboards run unedited.
+  Sloth's status has no conditions, so the `apps` Kustomization checks
+  `promOpRulesGenerated` to catch a broken SLO. Trade-off: the generated rules
+  live in the cluster, not in git.
 - **99% targets.** Each endpoint gets about 17 requests a minute, about 1,000
   an hour. A page needs 14.4 times the sustainable error rate over the last
   hour: at 99.9% that is about 15 failed requests in an hour, at 99% about
@@ -292,6 +331,10 @@ These follow from the rule definitions; I didn't run them:
   response status; backend-api creates its table with retries, or a migration
   Job does; both apps log JSON with a `level` field; backend commits after its
   readiness `SELECT 1`.
+- **Shorter `slo.yaml` files:** with one metric convention across services
+  (OpenTelemetry's HTTP server metrics, for example), a shared Sloth SLI
+  plugin would build the queries, and a team would only name its endpoint and
+  target.
 - **A notification channel** for `page` and `ticket`, after SOPS and age, and
   a dead man's switch on `Watchdog`.
 - **CI** once changes go through pull requests: render every layer, validate
