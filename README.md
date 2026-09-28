@@ -186,7 +186,7 @@ you from "is something wrong" to "which component":
 |---|---|---|
 | SLOs | High level Sloth SLOs | Is any SLO burning its error budget? |
 | SLOs | SLO / Detail | How is one SLO doing: SLI, burn rate, budget left? |
-| Apps | ml-api / Service health, backend-api / Service health | Per app: rate, errors, latency, then ready pods and memory (ml-api) or the database pool (backend-api). Each panel links to the app's SLO, pods and logs; an `Apps` menu switches between app boards |
+| Apps | ml-api / Service health, backend-api / Service health | Per app: rate, errors, latency, then ready pods and memory (ml-api) or the database pool (backend-api), and the app's logs at the bottom. Each panel links to the app's SLO, pods and logs; an `Apps` menu switches between app boards |
 | Components | Kubernetes / Compute Resources (Cluster → Namespace → Pod), Node Exporter / Nodes | Where do CPU, memory, disk and network go? |
 | Components | Flux Cluster Stats, Postgres Overview, VictoriaMetrics (single-node, vmagent, vmalert, operator), VictoriaLogs (single-node, vlagent) | Is this component healthy? |
 
@@ -255,8 +255,10 @@ describes, and add three things:
 
 vlagent runs on every node, reads every container's log and ships it to
 VLSingle, which keeps 31 days. Read logs in Grafana (Explore, data source
-`VictoriaLogs`) or in VictoriaLogs' own UI. Alerts cover the logging stack's
-own health, not log content.
+`VictoriaLogs`), at the bottom of each app board, or in VictoriaLogs' own UI.
+The app boards hide successful health, readiness and metrics requests, about
+three quarters of the apps' lines. Alerts cover the logging stack's own
+health, not log content.
 
 #### Why VictoriaLogs, not Loki
 
@@ -345,6 +347,13 @@ but as tickets after 15 minutes. `DeploymentUnavailable` pages for every
 workload outside `kube-system`, `flux-system` and `monitoring`, so a new app
 is covered without a rule change. The tickets name the cause. `SLOHasNoData`
 covers every SLO the same way, so it also needs no change per service.
+
+An app gets its own `alerts.yaml` only for causes the shared rules can't know.
+backend-api has one for its connection pool. ml-api has none: its causes,
+memory and a failing health check, are what `ContainerMemoryNearLimit`,
+`ContainerOOMKilled`, `KubePodCrashLooping` and `DeploymentUnavailable` catch
+for every app, and it counts no errors a rule could read (see
+[Known issues](#known-issues)).
 
 The app images have environment switches that cause incidents. I ran each
 incident below on the cluster (the ml-api switches and the broken files in a
@@ -446,8 +455,12 @@ These follow from the rule definitions; I didn't run them:
   Without internet the upgrade fails and retries, and Grafana starts without
   those boards or the logs data source.
 - **Postgres on `emptyDir`.** Its data is throwaway here.
-- **No CI yet.** I push straight to `main`, and Flux reports a broken render a
-  minute later. CI belongs in the setup once changes go through pull requests.
+- **Straight to `main`, no CI.** I made every change directly on `main`,
+  without branches or pull requests, and Flux reports a broken render a minute
+  after a push. I also didn't pay attention to commit messages or enforce a
+  convention: most messages happen to look like Conventional Commits, but
+  nothing checks them and the history mixes styles. Branches, pull requests
+  and CI belong in the setup once more than one person works on it.
 
 ## Known issues
 
@@ -485,6 +498,17 @@ These follow from the rule definitions; I didn't run them:
   response status; backend-api creates its table with retries, or a migration
   Job does; both apps log JSON with a `level` field; backend commits after its
   readiness `SELECT 1`.
+- **Deterministic cluster start-up.** I'd explore proper dependency
+  management for bringing a cluster up, where some services wait until the
+  ones they need actually work. `dependsOn` is a step in that direction but
+  doesn't solve it: it orders Flux's layers, and "Ready" means a readiness
+  probe passed, not that postgres has backend-api's table. It also holds only
+  for the first apply; nothing waits when postgres restarts later. I'd look at
+  Flux health checks on the specific objects a service needs, and at schema
+  migrations as Jobs that the apps wait for. Whatever the ordering, I'd still
+  hold every app to one rule: it starts without its dependencies, retries with
+  backoff and reports not ready until they answer, instead of crashing or
+  skipping its setup the way backend-api skips its table today.
 - **One metric convention across services** (OpenTelemetry's HTTP server
   metrics, for example). A shared Sloth SLI plugin would then build the
   queries, so a team only names its endpoint and target, and one shared board
@@ -513,7 +537,7 @@ databases/
   base/postgres/
   devops-cs/               + the postgres Secret
 apps/
-  base/<app>/              Deployment, Service, SLOs (slo.yaml), alerts, board (dashboard.json)
+  base/<app>/              Deployment, Service, SLOs (slo.yaml), board (dashboard.json), own alerts if needed (alerts.yaml)
   devops-cs/               + backend-api's Secret
 bootstrap/                 k3d config and bootstrap script
 docs/                      agent working notes (specs, plans), the first inspection

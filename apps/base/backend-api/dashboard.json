@@ -553,7 +553,8 @@
             },
             "thresholdsStyle": {
               "mode": "dashed"
-            }
+            },
+            "axisSoftMax": 10
           },
           "thresholds": {
             "mode": "absolute",
@@ -706,6 +707,62 @@
         {
           "title": "Logs: namespace backend-api",
           "url": "/explore?schemaVersion=1&orgId=1&panes={\"a\":{\"datasource\":\"VictoriaLogs\",\"queries\":[{\"refId\":\"A\",\"datasource\":{\"type\":\"victoriametrics-logs-datasource\",\"uid\":\"VictoriaLogs\"},\"expr\":\"kubernetes.pod_namespace:=backend-api\",\"queryType\":\"instant\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 14,
+      "title": "backend-api \u00b7 logs",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "panels": []
+    },
+    {
+      "type": "logs",
+      "id": 15,
+      "title": "Logs",
+      "description": "The container logs of namespace backend-api from VictoriaLogs for the dashboard's time range, newest first. Successful health, readiness and metrics requests are hidden; failed ones stay. The controls on the right filter by level; the panel link opens every line in Explore.",
+      "datasource": {
+        "type": "victoriametrics-logs-datasource",
+        "uid": "VictoriaLogs"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "links": [
+        {
+          "title": "All logs of namespace backend-api in Explore",
+          "url": "/explore?schemaVersion=1&orgId=1&panes={\"a\":{\"datasource\":\"VictoriaLogs\",\"queries\":[{\"refId\":\"A\",\"datasource\":{\"type\":\"victoriametrics-logs-datasource\",\"uid\":\"VictoriaLogs\"},\"expr\":\"kubernetes.pod_namespace:=backend-api\",\"queryType\":\"instant\"}],\"range\":{\"from\":\"${__from}\",\"to\":\"${__to}\"}}}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "enableInfiniteScrolling": true,
+        "showControls": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "victoriametrics-logs-datasource",
+            "uid": "VictoriaLogs"
+          },
+          "expr": "kubernetes.pod_namespace:=backend-api -~'\"GET /(health|ready|metrics) HTTP/[0-9.]+\" 200 '",
+          "queryType": "instant"
         }
       ]
     }
