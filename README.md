@@ -329,7 +329,19 @@ switched on where they offer it, and the level rules cover the rest.
 Every alert has a severity. Alertmanager sends Sloth's fast burns and
 `severity=critical` to the receiver `page`, and everything else to `ticket`
 (`infrastructure/base/monitoring/alertmanager-config.yaml`). No receiver has
-an integration yet, so you see alerts only in Alertmanager and Grafana.
+an integration yet, so you see alerts only in the UIs:
+
+- **What fired and who would be notified:** Grafana, Alerting → Active
+  notifications, with `Alertmanager` chosen. It lists every alert with its
+  receiver and marks inhibited or silenced ones as suppressed. Alertmanager's
+  own UI (port 9093) shows the same; tick Inhibited to include suppressed
+  alerts.
+- **Why a rule did or didn't fire:** vmalert's UI (port 8080) shows every rule
+  with its state, including pending ones still inside their `for:` wait, and
+  any query error.
+- **SLOs at a glance:** High level Sloth SLOs counts firing SLO alerts and
+  lists the SLOs burning faster than 1×; its burn-rate panels stay empty
+  while every SLO is healthy.
 
 A healthy cluster still shows a few alerts. `Watchdog` fires all the time to
 prove the pipeline works. Two info alerts fire too, and Alertmanager silences
@@ -401,8 +413,9 @@ factors are Sloth's defaults and the same for every SLO.
 ### Incidents and the alerts they raise
 
 The app images have environment switches that cause incidents. I ran each
-incident below on the cluster (the ml-api switches and the broken files in a
-scratch namespace). Times count from the change:
+incident below on the cluster (the ml-api switches, the broken files, the
+burning SLO and the memory hold in a scratch namespace). Times count from the
+change:
 
 | Incident | Alerts, in order |
 |---|---|
@@ -413,6 +426,8 @@ scratch namespace). Times count from the change:
 | An `slo.yaml` Sloth can't turn into rules | Under 2 min: `FluxKustomizationHealthcheckfailed`, and the Kustomization isn't Ready. |
 | An `slo.yaml` with a misspelled metric name | Sloth and Flux report success. About 20 min: `SLOHasNoData` for that SLO only (tested with a shorter wait). |
 | An alert rule with an invalid expression | The admission check rejects it, nothing reaches vmalert. Under 2 min: `FluxKustomizationReconciliationfailed`. |
+| An SLO burns its budget (a scratch SLO that counts every request as bad) | 35 s after Sloth wrote its rules: its page and its ticket fire together. Alertmanager sends the page to `page`, and the page suppresses the ticket. |
+| A container holds 93% of its memory limit | 6.4 min: `ContainerMemoryNearLimit` (a 5-minute wait, plus scraping). |
 
 `DeploymentUnavailable` stays firing for 5 minutes after the pods recover
 (`keep_firing_for`), so a crash loop pages once instead of flapping.
