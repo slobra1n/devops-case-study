@@ -193,7 +193,8 @@ I wrote the two app boards. Each lives next to its app, in
 `apps/base/<app>/dashboard.json`, like its `slo.yaml` and alerts, so a team
 owns its board the way it owns its SLOs, and a new service adds its board
 without touching the monitoring stack. Grafana's sidecar loads labelled
-board ConfigMaps from every namespace. Every other board comes unedited from
+board ConfigMaps from every namespace, and names each file after its
+namespace and ConfigMap, so every app can use the same `dashboard.json`. Every other board comes unedited from
 a published upstream project, pinned to the version that runs here. Alerts
 link to the board that explains them.
 

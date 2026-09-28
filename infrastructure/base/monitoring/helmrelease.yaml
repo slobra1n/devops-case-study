@@ -45,6 +45,10 @@ spec:
         dashboards:
           default_home_dashboard_path: /var/lib/grafana/dashboards/slos/sloth-overview.json
       sidecar:
+        # Every app's board ConfigMap uses the key dashboard.json; without
+        # this, boards in the same folder overwrite each other on disk.
+        # Filenames become <namespace>_<configmap>_<key>.
+        enableUniqueFilenames: true
         dashboards:
           folderAnnotation: grafana_folder
           # Apps ship their own board next to their manifests, in their own
