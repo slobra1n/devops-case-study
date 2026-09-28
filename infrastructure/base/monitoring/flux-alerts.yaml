@@ -2,7 +2,7 @@
 # notification-controller forwards error events of these objects to Alertmanager
 # (https://fluxcd.io/flux/components/notification/providers/#prometheus-alertmanager).
 # Labels: alertname Flux<Kind><Reason>, severity error. Events carry no end
-# time; Alertmanager resolves them after resolve_timeout (helmrelease.yaml).
+# time; Alertmanager resolves them after resolve_timeout (alertmanager-config.yaml).
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
 kind: Provider
 metadata:

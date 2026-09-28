@@ -1,0 +1,50 @@
+# Alertmanager's routing, as Helm values for the victoria-metrics-k8s-stack
+# HelmRelease: helmrelease.yaml reads this file through valuesFrom, and the
+# chart turns it into Alertmanager's config. It follows kube-prometheus'
+# published Alertmanager config
+# (https://github.com/prometheus-operator/kube-prometheus/blob/v0.19.0/manifests/alertmanager-secret.yaml)
+# plus the Sloth routes. Pages: Sloth fast burn and severity=critical;
+# everything else is a ticket. The receivers have no integrations yet:
+# alerts are visible in the Alertmanager UI and Grafana only.
+alertmanager:
+  config:
+    global:
+      # Flux events (flux-alerts.yaml) carry no end time; Flux's docs suggest
+      # an hour. vmalert's alerts carry end times and are unaffected.
+      resolve_timeout: 1h
+    route:
+      receiver: ticket # tickets, and anything unrouted still reaches a human
+      group_by: [namespace, alertname, sloth_id]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      routes:
+        - matchers: ['alertname="Watchdog"'] # always firing: proves the pipeline works
+          receiver: watchdog
+        - matchers: ['alertname="InfoInhibitor"']
+          receiver: "null"
+        - matchers: ['sloth_severity="page"']
+          receiver: page
+        - matchers: ['severity="critical"']
+          receiver: page
+    receivers:
+      - name: page
+      - name: ticket
+      - name: watchdog
+      - name: "null"
+    inhibit_rules:
+      # The workbook's suppression: a page silences the ticket of the same SLO.
+      - source_matchers: ['sloth_severity="page"']
+        target_matchers: ['sloth_severity="ticket"']
+        equal: [sloth_id]
+      # kube-prometheus: critical silences warning/info of the same alert,
+      # warning silences info, and info alerts alone never notify.
+      - source_matchers: ['severity="critical"']
+        target_matchers: ['severity=~"warning|info"']
+        equal: [namespace, alertname]
+      - source_matchers: ['severity="warning"']
+        target_matchers: ['severity="info"']
+        equal: [namespace, alertname]
+      - source_matchers: ['alertname="InfoInhibitor"']
+        target_matchers: ['severity="info"']
+        equal: [namespace]

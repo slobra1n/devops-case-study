@@ -323,9 +323,9 @@ switched on where they offer it, and the level rules cover the rest.
 ## Alerts and what they catch
 
 Every alert has a severity. Alertmanager sends Sloth's fast burns and
-`severity=critical` to the receiver `page`, and everything else to `ticket`.
-No receiver has an integration yet, so you see alerts only in Alertmanager and
-Grafana.
+`severity=critical` to the receiver `page`, and everything else to `ticket`
+(`infrastructure/base/monitoring/alertmanager-config.yaml`). No receiver has
+an integration yet, so you see alerts only in Alertmanager and Grafana.
 
 A healthy cluster still shows a few alerts. `Watchdog` fires all the time to
 prove the pipeline works. Two info alerts fire too, and Alertmanager silences
@@ -533,7 +533,7 @@ cluster runs from it, plus its differences.
 clusters/devops-cs/        Flux wiring: one Kustomization per layer, order, health checks
   flux-system/             Flux itself (written by flux bootstrap)
 infrastructure/
-  base/monitoring/         monitoring stack, Sloth, alert rules, Flux alerts, dashboards
+  base/monitoring/         monitoring stack, Sloth, alert rules and routing, Flux alerts, dashboards
   devops-cs/               this cluster's selection and patches
 databases/
   base/postgres/
@@ -556,7 +556,7 @@ docs/                      agent working notes (specs, plans), the first inspect
 | Add a top-level layer folder | Also add `!/<folder>` to `.sourceignore`: Flux downloads only the folders listed there |
 | Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
 | Change an alert rule | SLO alerts: the target in `slo.yaml`, the plugin chain in `sloth.yaml`. My platform-wide rules: `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml`; app-specific ones: `apps/base/<app>/alerts.yaml`. Published rules: `defaultRules` in `helmrelease.yaml` (`rules.<AlertName>.enabled: false` switches one off; per cluster in the overlay) |
-| Change where alerts go | `alertmanager.config` in `helmrelease.yaml` |
+| Change where alerts go | `infrastructure/base/monitoring/alertmanager-config.yaml`: routes, receivers, inhibitions |
 | Add or change a dashboard | An app's board: `apps/base/<app>/dashboard.json` plus the `configMapGenerator` entry in that app's `kustomization.yaml` ([how](#change-an-app-board)). A component's board (Flux, Postgres): `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's boards: `defaultDashboards` in `helmrelease.yaml`. Sloth's boards: `grafana.dashboards` (grafana.com ID and revision) |
 | Use a different dashboard on one cluster | A `configMapGenerator` entry with the same name and `behavior: replace` in the cluster's overlay: `apps/<cluster>/<app>/kustomization.yaml` for an app's board, `infrastructure/<cluster>/monitoring/kustomization.yaml` for a component's. A HelmRelease patch of `defaultDashboards` for a chart board |
 
