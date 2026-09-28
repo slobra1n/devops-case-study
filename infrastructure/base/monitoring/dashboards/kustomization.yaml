@@ -1,9 +1,10 @@
-# Grafana dashboards kept in git.
+# Grafana dashboards of platform components, kept in git.
 # Each file becomes a ConfigMap; Grafana's sidecar loads every ConfigMap labelled
 # grafana_dashboard=1 into the folder named by its grafana_folder annotation.
-# Not here: the chart's published boards (defaultDashboards in ../helmrelease.yaml)
-# and the Sloth SLO dashboards Grafana downloads from grafana.com
-# (grafana.dashboards in ../helmrelease.yaml).
+# Not here: each app's own board (apps/base/<app>/dashboard.json, shipped with
+# the app), the chart's published boards (defaultDashboards in
+# ../helmrelease.yaml) and the Sloth SLO dashboards Grafana downloads from
+# grafana.com (grafana.dashboards in ../helmrelease.yaml).
 # Clusters replace one in their overlay with a configMapGenerator entry of the
 # same name and `behavior: replace`.
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -23,9 +24,3 @@ configMapGenerator:
   - name: dashboard-postgres
     files: [components/postgres.json]
     options: {annotations: {grafana_folder: Components}}
-  # Ours, the only hand-written board: per app, rate, errors and duration, then
-  # ready pods, memory and the database pool, from the apps' own metrics and
-  # kube-state-metrics. No published board fits the apps' metric names.
-  - name: dashboard-apps-red
-    files: [apps/red.json]
-    options: {annotations: {grafana_folder: Apps}}

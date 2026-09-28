@@ -188,6 +188,11 @@ alert's SLO. The two boards don't link to each other (unedited upstream).
 
 ## Our boards
 
+> **2026-09-28:** the apps board is split into one board per app, shipped
+> with the app: `apps/base/<app>/dashboard.json` (uids `app-ml-api`,
+> `app-backend-api`), loaded by the Grafana sidecar with `searchNamespace:
+> ALL`. Mentions of `apps/red.json` and `apps-red` below are history.
+
 Until 2026-09-27 folder `Overview` held two hand-written boards, `apps` (the
 four golden signals per API) and `platform` (Flux, workloads, node,
 monitoring). They were removed so that only published dashboards remain; their

@@ -18,7 +18,7 @@ spec:
           annotations:
             summary: "{{ $labels.pod }} holds {{ $value }} of 10 database connections"
             description: "When the pool is full, POST /process answers 503 and /ready fails, so the pod leaves the Service. Connections that stay taken without traffic point to a leak."
-            dashboard: "{{ $externalURL }}/d/apps-red"
+            dashboard: "{{ $externalURL }}/d/app-backend-api"
         - alert: BackendDbQueryErrors
           expr: sum by (namespace, status) (increase(backend_api_db_queries_total{status!="success"}[5m])) > 0
           labels:
@@ -26,4 +26,4 @@ spec:
           annotations:
             summary: "backend-api database queries fail: {{ $labels.status }}"
             description: "pool_exhausted: no free connection, the request got 503. error: the query failed, the request got 500 (for example, a missing documents table)."
-            dashboard: "{{ $externalURL }}/d/apps-red"
+            dashboard: "{{ $externalURL }}/d/app-backend-api"

@@ -47,6 +47,9 @@ spec:
       sidecar:
         dashboards:
           folderAnnotation: grafana_folder
+          # Apps ship their own board next to their manifests, in their own
+          # namespace (apps/base/<app>/dashboard.json).
+          searchNamespace: ALL
           # The chart's default, /var/lib/grafana/dashboards, would hide the
           # downloaded Sloth dashboards below (the sidecar's volume is mounted
           # over that directory). /tmp/dashboards is the Grafana chart's default.

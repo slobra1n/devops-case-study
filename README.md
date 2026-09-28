@@ -110,7 +110,7 @@ platform underneath.
 
 The key metrics the apps expose, and where I use each:
 
-| Metric | Panel on the apps board | Alert |
+| Metric | Panel on the app's board | Alert |
 |---|---|---|
 | `ml_api_requests_total` | Rate, Errors | predict-availability SLO |
 | `ml_api_request_duration_seconds` | Duration | predict-latency SLO |
@@ -157,12 +157,15 @@ To add a service:
    `prometheus.io/path`; vmagent scrapes every annotated pod.
 3. Copy `apps/base/ml-api/slo.yaml` into the app's folder, change the queries
    and the target, and list the file in the app's `kustomization.yaml`.
+4. Optionally, copy `apps/base/ml-api/dashboard.json` and its
+   `configMapGenerator` entry the same way, for a board with the app's own
+   metrics. Grafana picks it up from the app's namespace.
 
 The team still writes two queries per SLO, because every app names its
 metrics its own way, and picks the target, which is a product decision. The
 SLOs count requests inside the app, so an app with no ready pod burns no
 budget; `DeploymentUnavailable` covers that for every workload, also without a
-change. The apps board is the one piece that needs a new row per service.
+change.
 
 This cluster runs four SLOs, each 99% over a rolling 30 days:
 
@@ -182,13 +185,17 @@ you from "is something wrong" to "which component":
 |---|---|---|
 | SLOs | High level Sloth SLOs | Is any SLO burning its error budget? |
 | SLOs | SLO / Detail | How is one SLO doing: SLI, burn rate, budget left? |
-| Apps | Apps / Service health | Per app: rate, errors, latency, then ready pods, memory (ml-api) and the database pool (backend-api). Each panel links to the app's SLO, pods and logs |
+| Apps | ml-api / Service health, backend-api / Service health | Per app: rate, errors, latency, then ready pods and memory (ml-api) or the database pool (backend-api). Each panel links to the app's SLO, pods and logs; an `Apps` menu switches between app boards |
 | Components | Kubernetes / Compute Resources (Cluster → Namespace → Pod), Node Exporter / Nodes | Where do CPU, memory, disk and network go? |
 | Components | Flux Cluster Stats, Postgres Overview, VictoriaMetrics (single-node, vmagent, vmalert, operator), VictoriaLogs (single-node, vlagent) | Is this component healthy? |
 
-I wrote the apps board; every other board comes unedited from a published
-upstream project, pinned to the version that runs here. Alerts link to the
-board that explains them.
+I wrote the two app boards. Each lives next to its app, in
+`apps/base/<app>/dashboard.json`, like its `slo.yaml` and alerts, so a team
+owns its board the way it owns its SLOs, and a new service adds its board
+without touching the monitoring stack. Grafana's sidecar loads labelled
+board ConfigMaps from every namespace. Every other board comes unedited from
+a published upstream project, pinned to the version that runs here. Alerts
+link to the board that explains them.
 
 ### Logs
 
@@ -293,7 +300,7 @@ These follow from the rule definitions; I didn't run them:
   job turns each `PrometheusRule` file into a `VMRule`. k3s needed one
   adaptation: it serves the API server's metrics on the kubelet's endpoint, so
   `KubeClientErrors` reads `job="kubelet"`, and the API server availability
-  rules are off. My own exceptions are the apps board and six alert rules: no
+  rules are off. My own exceptions are the app boards and six alert rules: no
   published set knows these apps' metrics, and the published pod alerts only
   open tickets after 15 minutes.
 - **SLOs from the apps' own metrics.** An earlier version measured ml-api with
@@ -390,7 +397,7 @@ databases/
   base/postgres/
   devops-cs/               + the postgres Secret
 apps/
-  base/<app>/              Deployment, Service, SLOs (slo.yaml), app alerts
+  base/<app>/              Deployment, Service, SLOs (slo.yaml), alerts, board (dashboard.json)
   devops-cs/               + backend-api's Secret
 bootstrap/                 k3d config and bootstrap script
 docs/                      agent working notes (specs, plans), the first inspection
@@ -408,8 +415,8 @@ docs/                      agent working notes (specs, plans), the first inspect
 | Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
 | Change an alert rule | SLO alerts: the target in `slo.yaml`, the plugin chain in `sloth.yaml`. My platform-wide rules: `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml`; app-specific ones: `apps/base/<app>/alerts.yaml`. Published rules: `defaultRules` in `helmrelease.yaml` (`rules.<AlertName>.enabled: false` switches one off; per cluster in the overlay) |
 | Change where alerts go | `alertmanager.config` in `helmrelease.yaml` |
-| Add or change a dashboard | A file (the apps board, Flux, Postgres): `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's boards: `defaultDashboards` in `helmrelease.yaml`. Sloth's boards: `grafana.dashboards` (grafana.com ID and revision) |
-| Use a different dashboard on one cluster | `infrastructure/<cluster>/monitoring/kustomization.yaml`: a `configMapGenerator` entry with `behavior: replace` for a file, a HelmRelease patch of `defaultDashboards` for a chart board |
+| Add or change a dashboard | An app's board: `apps/base/<app>/dashboard.json` plus the `configMapGenerator` entry in that app's `kustomization.yaml`. A component's board (Flux, Postgres): `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's boards: `defaultDashboards` in `helmrelease.yaml`. Sloth's boards: `grafana.dashboards` (grafana.com ID and revision) |
+| Use a different dashboard on one cluster | A `configMapGenerator` entry with the same name and `behavior: replace` in the cluster's overlay: `apps/<cluster>/<app>/kustomization.yaml` for an app's board, `infrastructure/<cluster>/monitoring/kustomization.yaml` for a component's. A HelmRelease patch of `defaultDashboards` for a chart board |
 
 ## Working notes
 
