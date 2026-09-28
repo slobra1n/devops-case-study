@@ -197,9 +197,9 @@ without touching the monitoring stack. Grafana's sidecar loads labelled board
 ConfigMaps from every namespace and names each file after its namespace and
 ConfigMap, so every app can keep the file name `dashboard.json`. Every other
 board comes unedited from a published upstream project, pinned to the version
-that runs here. Postgres' board ships next to postgres, the rest with the
-monitoring stack ([why](#where-monitoring-lives)). Alerts link to the board
-that explains them.
+that runs here. Postgres' and Flux's boards ship next to what they show, the
+rest with the monitoring stack ([why](#where-monitoring-lives)). Alerts link to
+the board that explains them.
 
 #### Change an app board
 

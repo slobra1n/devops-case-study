@@ -69,8 +69,9 @@ spec:
         enableUniqueFilenames: true
         dashboards:
           folderAnnotation: grafana_folder
-          # Apps ship their own board next to their manifests, in their own
-          # namespace (apps/base/<app>/dashboard.json).
+          # Boards in git sit next to what they show, in its namespace:
+          # apps/base/<app>/, databases/base/postgres/,
+          # infrastructure/base/flux-monitoring/.
           searchNamespace: ALL
           # The chart's default, /var/lib/grafana/dashboards, would hide the
           # downloaded Sloth dashboards below (the sidecar's volume is mounted
