@@ -1,10 +1,13 @@
 # DevOps case study: GitOps and observability on k3d
 
 This repository runs two Python APIs, a load generator and PostgreSQL on a
-local k3d cluster, deployed by Flux. On top I added metric collection (the
-apps' existing `/metrics`, postgres through an exporter, Flux and the cluster),
-SLOs with burn-rate alerts, platform alerts, dashboards and logs, built from
-the VictoriaMetrics stack and Sloth and deployed the same way.
+local k3d cluster, deployed by Flux. On top I added monitoring, built from the
+VictoriaMetrics stack and Sloth and deployed by Flux the same way:
+
+- metric collection from the apps' existing `/metrics`, from postgres through
+  an exporter, and from Flux and the cluster;
+- SLOs with burn-rate alerts, and alerts for the platform;
+- dashboards and logs.
 
 The case study asks three questions, answered in these sections:
 
@@ -101,8 +104,8 @@ platform underneath.
 
 1. **Rate, errors and latency of the user endpoints,** `POST /predict` and
    `POST /process`. Probe and metrics endpoints stay out. Errors and latency
-   become SLOs, so an alert means the error budget is going, and a single slow
-   request stays quiet.
+   are SLOs, so an alert fires only when the error budget drains too fast; a
+   single slow request doesn't alert.
 2. **Ready pods.** The apps count only the requests they receive. A pod that
    fails its readiness probe leaves its Service and gets none, so a full
    outage shows up as silence in the apps' metrics, with no errors.
@@ -125,10 +128,11 @@ The key metrics the apps expose, and where I use each:
 | `backend_api_db_queries_total` | DB queries | `BackendDbQueryErrors` |
 
 **Collection.** vmagent scrapes Kubernetes (kubelet, cAdvisor,
-kube-state-metrics), the node (node-exporter), the monitoring stack itself and
-every pod annotated `prometheus.io/scrape`: both APIs on `:8000/metrics` and
-postgres-exporter on `:9187`. One annotation rule covers every pod, so a new
-app needs no monitoring change to be scraped. VMSingle keeps 31 days.
+kube-state-metrics, CoreDNS), the node (node-exporter), the monitoring stack
+itself and every pod annotated `prometheus.io/scrape`: both APIs on
+`:8000/metrics`, postgres-exporter on `:9187` and Flux's controllers. One
+annotation rule covers every pod, so a new app needs no monitoring change to be
+scraped. VMSingle keeps 31 days.
 
 ### Why SLOs with Sloth
 
@@ -167,10 +171,10 @@ To add a service:
    metrics. Grafana picks it up from the app's namespace.
 
 The team still writes two queries per SLO, because every app names its
-metrics its own way, and picks the target, which is a product decision. The
+metrics differently, and picks the target, which is a product decision. The
 SLOs count requests inside the app, so an app with no ready pod burns no
-budget; `DeploymentUnavailable` covers that for every workload, also without a
-change.
+budget. `DeploymentUnavailable` catches that for every workload, again with no
+change per service.
 
 This cluster runs four SLOs, each 99% over a rolling 30 days:
 
@@ -254,9 +258,9 @@ describes, and add three things:
    [Git Sync](https://grafana.com/docs/grafana/latest/as-code/observability-as-code/git-sync/),
    generally available since April 2026, can turn a save in the UI into a pull
    request instead of a direct commit. It syncs one repository path per
-   connection, though, and Grafana advises against a connection per team or
-   service, so it suits a central dashboards repository better than boards
-   spread across service folders.
+   connection, and Grafana advises against a connection per team or service.
+   That suits one central dashboards repository better than boards spread
+   across service folders.
 
 ### Logs
 
@@ -327,7 +331,7 @@ switched on where they offer it, and the level rules cover the rest.
 
 ## Alerts and what they catch
 
-Every alert has a severity. Alertmanager sends Sloth's fast burns and
+Every alert has a severity. Alertmanager sends Sloth's page alerts and
 `severity=critical` to the receiver `page`, and everything else to `ticket`
 (`infrastructure/base/monitoring/alertmanager-config.yaml`). No receiver has
 an integration yet, so you see alerts only in the UIs:
@@ -345,11 +349,11 @@ an integration yet, so you see alerts only in the UIs:
   while every SLO is healthy.
 
 A healthy cluster still shows a few alerts. `Watchdog` fires all the time to
-prove the pipeline works. Two info alerts fire too, and Alertmanager silences
-them through `InfoInhibitor`: `RecordingRulesNoData` for `count:up0`, because
-kube-prometheus' count of down targets records nothing while every target is
-up, and at times `CPUThrottlingHigh` for the Sloth controller, whose chart sets
-a 50m CPU limit.
+prove the pipeline works. Info alerts can fire too, and Alertmanager silences
+them through `InfoInhibitor`. `RecordingRulesNoData` fires for `count:up0`,
+kube-prometheus' count of down targets, which records nothing while every
+target is up. `CPUThrottlingHigh` fires at times for the Sloth controller,
+whose chart sets a 50m CPU limit.
 
 | Source | Catches |
 |---|---|
@@ -362,16 +366,17 @@ a 50m CPU limit.
 I added my own rules because the SLOs can't see a full outage. They count
 requests inside the apps; when every pod fails readiness, no request arrives
 and the error ratio has nothing to count. The published pod alerts do fire,
-but as tickets after 15 minutes. `DeploymentUnavailable` pages for every
+but only as tickets after 15 minutes. `DeploymentUnavailable` pages for every
 workload outside `kube-system`, `flux-system` and `monitoring`, so a new app
-is covered without a rule change. The tickets name the cause. `SLOHasNoData`
-covers every SLO the same way, so it also needs no change per service.
+is covered without a rule change. My ticket rules name the cause: an OOM
+kill, memory near the limit, a full connection pool. `SLOHasNoData` covers
+every SLO the same way, so it also needs no change per service.
 
 An app gets its own `alerts.yaml` only for causes the shared rules can't know.
-backend-api has one for its connection pool. ml-api has none: its causes,
-memory and a failing health check, are what `ContainerMemoryNearLimit`,
-`ContainerOOMKilled`, `KubePodCrashLooping` and `DeploymentUnavailable` catch
-for every app, and it counts no errors a rule could read (see
+backend-api has one for its connection pool. ml-api has none. The shared rules
+already catch its likely causes, memory and a failing health check, through
+`ContainerMemoryNearLimit`, `ContainerOOMKilled`, `KubePodCrashLooping` and
+`DeploymentUnavailable`. It also counts no errors a rule could read (see
 [Known issues](#known-issues)).
 
 ### SLO alerts
@@ -493,16 +498,16 @@ Nothing leaves Alertmanager yet, so delivery to a pager or chat is untested.
 ## Decisions and trade-offs
 
 - **A layer per dependency level.** I wanted the apps to wait for postgres.
-  Flux's `dependsOn` orders only Flux objects, and postgres shared the `apps`
-  Kustomization with the apps, so postgres needed its own Kustomization. I
-  moved it out of `apps/` into its own `databases/` layer: a Kustomization
-  that pointed into `apps/` would sit in a folder that says "app" while Flux
-  treats it as a separate step, which confuses whoever maintains it. So the
-  rule is one top-level folder, one layer, one Flux Kustomization. Another
-  database later is a new folder in `databases/`, with no change in
-  `clusters/`. `apps` also waits for `infrastructure`, as in Flux's own example.
-  Trade-off: if the monitoring install breaks, new app deploys wait until it
-  works again; running apps keep running.
+  Flux's `dependsOn` orders Flux objects only, and postgres was part of the
+  `apps` Kustomization, so it needed a Kustomization of its own. I gave it its
+  own top-level folder, `databases/`, instead of a Kustomization that points
+  into `apps/`: a folder named "apps" that holds a separate Flux step would
+  confuse whoever maintains it. The rule is one top-level folder, one layer,
+  one Flux Kustomization. A second database later is a new folder in
+  `databases/`, with no change in `clusters/`. `apps` also waits for
+  `infrastructure`, as in Flux's own example. Trade-off: if the monitoring
+  install breaks, new app deploys wait until it works again; running apps keep
+  running.
 - **No `controllers/` and `configs/` split in infrastructure.** Flux's example
   splits them so that objects which need a CRD apply after the chart that
   installs it. Here the only such objects ship inside the chart
@@ -545,13 +550,13 @@ Nothing leaves Alertmanager yet, so delivery to a pager or chat is untested.
   probes `/health` and `/ready`, and `DeploymentUnavailable` covers the
   outage an in-app SLI misses.
 - **Sloth, run as a controller.** Sloth writes the SRE workbook's
-  multi-window, multi-burn-rate alerts from queries I write, and checks them
-  against VictoriaMetrics' query language. Pyrra, the closest alternative,
-  builds the queries itself from metric selectors. I run Sloth as a
-  controller, not as a CLI in CI: the CLI means generating and committing
-  rules for every SLO change, while the controller reads each `slo.yaml` in
-  the cluster, which is what makes the one-file onboarding above work.
-  Sloth's defaults stay (30-day period), so its dashboards run unedited.
+  multi-window, multi-burn-rate alerts from queries I write, and validates
+  those queries as MetricsQL, VictoriaMetrics' query language. Pyrra, the
+  closest alternative, builds the queries itself from metric selectors. I run
+  Sloth as a controller, not as a CLI in CI. With the CLI, every SLO change
+  means generating rules and committing them; the controller reads each
+  `slo.yaml` in the cluster, and that makes the one-file onboarding above
+  work. Sloth's defaults stay (30-day period), so its dashboards run unedited.
   Sloth's status has no conditions, so the `apps` Kustomization checks
   `promOpRulesGenerated` to catch a broken SLO. Trade-off: the generated rules
   live in the cluster, not in git.
@@ -591,37 +596,36 @@ Nothing leaves Alertmanager yet, so delivery to a pager or chat is untested.
   per entry. See [Logs](#logs).
 - **Three alerts off on purpose.** `PostgresHasTooManyRollbacks`: backend's
   `/ready` runs `SELECT 1`, and the connection pool rolls that back on every
-  call. Two on this cluster only, both from the Docker Desktop VM's clock:
-  `NodeClockNotSynchronising`, because the VM runs no NTP daemon
-  (`NodeClockSkewDetected` still watches the offset), and
-  `GroupIterationReset`, because the VM's clock steps back by up to 0.4 ms a
-  few times a minute and vmalert restarts its schedule on each step
-  (`TooManyMissedIterations` still catches slow evaluations).
+  call. The other two are off on this cluster only, because of the Docker
+  Desktop VM's clock. The VM runs no NTP daemon, so `NodeClockNotSynchronising`
+  fires; `NodeClockSkewDetected` still watches the offset. The VM's clock also
+  steps back by up to 0.4 ms a few times a minute, and vmalert restarts its
+  schedule on each step, so `GroupIterationReset` fires;
+  `TooManyMissedIterations` still catches slow evaluations.
 
 ## With more time
 
 - **Measure availability where the caller sees it,** through an ingress or
   metrics in the load generator. An outage or a broken Service would then
-  burn error budget right away, instead of pausing it until
-  `DeploymentUnavailable` or `SLOHasNoData` catches it.
+  burn error budget right away. Today the SLOs stop counting, and
+  `DeploymentUnavailable` or `SLOHasNoData` has to catch it.
 - **App changes** (the images aren't in this repo): ml-api counts its real
   response status; backend-api creates its table with retries, or a migration
   Job does; both apps log JSON with a `level` field; backend commits after its
   readiness `SELECT 1`.
-- **Deterministic cluster start-up.** I'd explore proper dependency
-  management for bringing a cluster up, where some services wait until the
-  ones they need actually work. `dependsOn` is a step in that direction but
+- **Deterministic cluster start-up.** I'd work out how a service waits until
+  the services it needs work. `dependsOn` is a step in that direction but
   doesn't solve it: it orders Flux's layers, and "Ready" means a readiness
   probe passed, not that postgres has backend-api's table. It also holds only
   for the first apply; nothing waits when postgres restarts later. I'd look at
   Flux health checks on the specific objects a service needs, and at schema
-  migrations as Jobs that the apps wait for. Whatever the ordering, I'd still
-  hold every app to one rule: it starts without its dependencies, retries with
-  backoff and reports not ready until they answer, instead of crashing or
-  skipping its setup the way backend-api skips its table today.
+  migrations as Jobs that the apps wait for. Either way, every app should
+  start without its dependencies, retry with backoff and report not ready
+  until they answer. Today backend-api skips creating its table when postgres
+  isn't ready yet.
 - **One metric convention across services** (OpenTelemetry's HTTP server
   metrics, for example). A shared Sloth SLI plugin would then build the
-  queries, so a team only names its endpoint and target, and one shared board
+  queries, so a team names only its endpoint and target. One shared board
   would replace the standard rows of the app boards (see
   [Dashboards in a real setup](#dashboards-in-a-real-setup)).
 - **A notification channel** for `page` and `ticket`, after SOPS and age, and
