@@ -1,9 +1,10 @@
 # DevOps case study: GitOps and observability on k3d
 
 This repository runs two Python APIs, a load generator and PostgreSQL on a
-local k3d cluster, deployed by Flux. On top I added metrics, SLOs with
-burn-rate alerts, platform alerts, dashboards and logs, built from the
-VictoriaMetrics stack and Sloth and deployed the same way.
+local k3d cluster, deployed by Flux. On top I added metric collection (the
+apps' existing `/metrics`, postgres through an exporter, Flux and the cluster),
+SLOs with burn-rate alerts, platform alerts, dashboards and logs, built from
+the VictoriaMetrics stack and Sloth and deployed the same way.
 
 The case study asks three questions, answered in these sections:
 
