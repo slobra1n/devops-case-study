@@ -323,7 +323,7 @@ apps/
   base/<app>/              Deployment, Service, SLOs (slo.yaml), app alerts
   devops-cs/               + backend-api's Secret
 bootstrap/                 k3d config and bootstrap script
-docs/                      design specs, plans, the first inspection
+docs/                      agent working notes (specs, plans), the first inspection
 ```
 
 | I want to… | Go to |
@@ -340,19 +340,28 @@ docs/                      design specs, plans, the first inspection
 | Add or change a dashboard | A file (the apps board, Flux, Postgres): `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's boards: `defaultDashboards` in `helmrelease.yaml`. Sloth's boards: `grafana.dashboards` (grafana.com ID and revision) |
 | Use a different dashboard on one cluster | `infrastructure/<cluster>/monitoring/kustomization.yaml`: a `configMapGenerator` entry with `behavior: replace` for a file, a HelmRelease patch of `defaultDashboards` for a chart board |
 
-## More documentation
+## Working notes
 
-Design specs in [`docs/superpowers/specs/`](docs/superpowers/specs/) describe
-each part and its acceptance criteria:
+This README is the documentation; you need nothing else to run or understand
+the setup.
 
-- [Step 0: environment inspection](docs/superpowers/specs/2026-09-25-step-0-environment-inspection-design.md)
-  and its [findings](docs/inspection/step-0-findings.md)
-- [Metrics collection](docs/superpowers/specs/2026-09-26-victoriametrics-metrics-collection-design.md)
-- [SLOs and SLIs](docs/superpowers/specs/2026-09-26-slo-sli-design.md)
-- [Grafana dashboards](docs/superpowers/specs/2026-09-26-grafana-dashboards-design.md), including the dashboard review
-- [Alerting](docs/superpowers/specs/2026-09-27-alerting-design.md)
-- [Logging](docs/superpowers/specs/2026-09-27-logging-design.md)
+I built this with AI coding agents. [`docs/superpowers/`](docs/superpowers/)
+is my scratch pad from that work, kept to show how I got to each decision.
+The folder name comes from Superpowers, the agent skill set that wrote it. In
+a team repository I'd delete the folder once the work is done and keep the
+decisions in this README.
 
-The implementation plans in [`docs/superpowers/plans/`](docs/superpowers/plans/)
-record how the earlier steps were built; later changes updated the specs, not
-the plans.
+- **Specs** ([`specs/`](docs/superpowers/specs/)): the design I agreed with
+  the agent before each step, with its acceptance checks. I updated them with
+  every later change, so they match the cluster and hold more detail than this
+  README:
+  - [Step 0: environment inspection](docs/superpowers/specs/2026-09-25-step-0-environment-inspection-design.md)
+    and its [findings](docs/inspection/step-0-findings.md)
+  - [Metrics collection](docs/superpowers/specs/2026-09-26-victoriametrics-metrics-collection-design.md)
+  - [SLOs and SLIs](docs/superpowers/specs/2026-09-26-slo-sli-design.md)
+  - [Grafana dashboards](docs/superpowers/specs/2026-09-26-grafana-dashboards-design.md), including the dashboard review
+  - [Alerting](docs/superpowers/specs/2026-09-27-alerting-design.md)
+  - [Logging](docs/superpowers/specs/2026-09-27-logging-design.md)
+- **Plans** ([`plans/`](docs/superpowers/plans/)): the agent's task lists for
+  the first four steps. I didn't update them after later changes, so read
+  them as history.
