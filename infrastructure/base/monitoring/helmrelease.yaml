@@ -47,7 +47,7 @@ spec:
       sidecar:
         # Every app's board ConfigMap uses the key dashboard.json; without
         # this, boards in the same folder overwrite each other on disk.
-        # Filenames become <namespace>_<configmap>_<key>.
+        # Filenames become namespace_<ns>.configmap_<name>.<key>.
         enableUniqueFilenames: true
         dashboards:
           folderAnnotation: grafana_folder
