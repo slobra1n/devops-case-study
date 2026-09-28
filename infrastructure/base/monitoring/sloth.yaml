@@ -17,6 +17,14 @@ spec:
 # Only the PrometheusRule CRD from prometheus-operator: Sloth writes it and the
 # VictoriaMetrics operator converts it. The operator only watches CRDs that
 # exist when it starts, so the stack depends on this release (helmrelease.yaml).
+# The chart installs every CRD by default; the rest stay off:
+# - ServiceMonitor, PodMonitor, Probe, ScrapeConfig, AlertmanagerConfig: the
+#   operator would convert any such object into scrape or routing config, a
+#   second, hidden way next to the prometheus.io annotations and
+#   alertmanager-config.yaml. Turn one on if a chart ships only a
+#   ServiceMonitor, then restart the operator.
+# - Prometheus, Alertmanager, PrometheusAgent, ThanosRuler: they need
+#   prometheus-operator, which doesn't run here.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
