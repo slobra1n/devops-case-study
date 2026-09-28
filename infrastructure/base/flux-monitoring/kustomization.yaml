@@ -1,0 +1,27 @@
+# Flux's own monitoring. flux bootstrap installs Flux itself
+# (clusters/<cluster>/flux-system/); this folder watches it:
+# - alerts.yaml: Flux's notification-controller forwards failures to Alertmanager.
+# - dashboard.json: Flux Cluster Stats, in flux-system next to what it shows.
+# - kube-state-metrics.yaml: the metrics that board reads, picked up by the
+#   monitoring stack's HelmRelease through valuesFrom.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - alerts.yaml
+configMapGenerator:
+  # Upstream, unedited. To update, download again at the new pin.
+  # https://github.com/fluxcd/flux2-monitoring-example/blob/7ab65dc8b90f7a6751d88f18bbb4e1bee33bf334/monitoring/configs/dashboards/cluster.json
+  - name: dashboard-flux
+    namespace: flux-system
+    files: [dashboard.json]
+    options:
+      labels: {grafana_dashboard: "1"}
+      annotations: {grafana_folder: Components}
+  # The watch label makes Flux upgrade the stack as soon as this file changes.
+  - name: flux-kube-state-metrics
+    namespace: monitoring
+    files: [kube-state-metrics.yaml]
+    options:
+      labels: {reconcile.fluxcd.io/watch: Enabled}
+generatorOptions:
+  disableNameSuffixHash: true # the HelmRelease reads one by name; nothing mounts the board

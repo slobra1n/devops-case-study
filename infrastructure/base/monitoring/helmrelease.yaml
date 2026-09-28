@@ -19,24 +19,30 @@ spec:
   upgrade:
     crds: CreateReplace
   # Two parts of the values live in their own files: Alertmanager's routing
-  # (alertmanager-config.yaml) and the alert rules (alert-rules.yaml).
-  # kustomization.yaml turns each into a ConfigMap of the same name. The values
-  # below are merged over them.
+  # (alertmanager-config.yaml) and the alert rules (alerts.yaml).
+  # kustomization.yaml turns each into a ConfigMap of the same name. A third
+  # comes from Flux's monitoring (../flux-monitoring/kube-state-metrics.yaml);
+  # it is optional, so the stack also runs without that folder. The values
+  # below are merged over all three.
   valuesFrom:
     - kind: ConfigMap
       name: alertmanager-config
       valuesKey: alertmanager-config.yaml
     - kind: ConfigMap
-      name: alert-rules
-      valuesKey: alert-rules.yaml
+      name: alerts
+      valuesKey: alerts.yaml
+    - kind: ConfigMap
+      name: flux-kube-state-metrics
+      valuesKey: kube-state-metrics.yaml
+      optional: true
   values:
     # Converted VMRules get an owner reference to their PrometheusRule, so
     # deleting an SLO also deletes its rules (default: they are left running).
     victoria-metrics-operator:
       operator:
         enable_converter_ownership: true
-    # Dashboards come from three places: ConfigMaps in git (dashboards/ here,
-    # and each app's own board in its namespace), the chart's published set
+    # Dashboards come from three places: ConfigMaps in git (each next to what
+    # it shows, in that component's namespace), the chart's published set
     # (defaultDashboards below) and grafana.com (Sloth's, below). The sidecar
     # puts each ConfigMap into the folder its grafana_folder annotation names.
     # No persistence: every dashboard is provisioned, so a restart loses
@@ -101,7 +107,7 @@ spec:
     # Routes, receivers and inhibitions: alertmanager-config.yaml (valuesFrom).
     alertmanager:
       enabled: true
-    # Evaluates the alert rules: published and mine in alert-rules.yaml
+    # Evaluates the alert rules: published and mine in alerts.yaml
     # (valuesFrom), the SLO rules Sloth generates and each app's alerts.yaml.
     vmalert:
       enabled: true
@@ -168,7 +174,7 @@ spec:
         prometheus: {enabled: false}
         prometheus-remote-write: {enabled: false}
         workload-total: {enabled: false}
-    # Downloads the published rules (alert-rules.yaml) and the dashboards above;
+    # Downloads the published rules (alerts.yaml) and the dashboards above;
     # if GitHub is unreachable, the Helm upgrade fails and is retried. Rules and
     # dashboards it no longer generates are deleted.
     syncJob:
@@ -231,86 +237,6 @@ spec:
       enabled: false
     kubeEtcd:
       enabled: false
-    # Ready/suspended state of Flux objects as gotk_resource_info, taken from
-    # Flux's official example (only the kinds this repo uses; add others when used):
-    # https://github.com/fluxcd/flux2-monitoring-example/blob/main/monitoring/controllers/kube-prometheus-stack/kube-state-metrics-config.yaml
-    kube-state-metrics:
-      rbac:
-        extraRules:
-          - apiGroups: [source.toolkit.fluxcd.io, kustomize.toolkit.fluxcd.io, helm.toolkit.fluxcd.io]
-            resources: [gitrepositories, helmrepositories, kustomizations, helmreleases]
-            verbs: [list, watch]
-      customResourceState:
-        enabled: true
-        config:
-          spec:
-            resources:
-              - groupVersionKind: {group: kustomize.toolkit.fluxcd.io, version: v1, kind: Kustomization}
-                metricNamePrefix: gotk
-                metrics:
-                  - name: resource_info
-                    help: The current state of a Flux Kustomization resource.
-                    each:
-                      type: Info
-                      info:
-                        labelsFromPath:
-                          name: [metadata, name]
-                labelsFromPath:
-                  exported_namespace: [metadata, namespace]
-                  ready: [status, conditions, "[type=Ready]", status]
-                  suspended: [spec, suspend]
-                  revision: [status, lastAppliedRevision]
-                  source_name: [spec, sourceRef, name]
-              - groupVersionKind: {group: helm.toolkit.fluxcd.io, version: v2, kind: HelmRelease}
-                metricNamePrefix: gotk
-                metrics:
-                  - name: resource_info
-                    help: The current state of a Flux HelmRelease resource.
-                    each:
-                      type: Info
-                      info:
-                        labelsFromPath:
-                          name: [metadata, name]
-                labelsFromPath:
-                  exported_namespace: [metadata, namespace]
-                  ready: [status, conditions, "[type=Ready]", status]
-                  suspended: [spec, suspend]
-                  revision: [status, history, "0", chartVersion]
-                  chart_name: [status, history, "0", chartName]
-                  chart_app_version: [status, history, "0", appVersion]
-                  chart_source_name: [spec, chart, spec, sourceRef, name]
-              - groupVersionKind: {group: source.toolkit.fluxcd.io, version: v1, kind: GitRepository}
-                metricNamePrefix: gotk
-                metrics:
-                  - name: resource_info
-                    help: The current state of a Flux GitRepository resource.
-                    each:
-                      type: Info
-                      info:
-                        labelsFromPath:
-                          name: [metadata, name]
-                labelsFromPath:
-                  exported_namespace: [metadata, namespace]
-                  ready: [status, conditions, "[type=Ready]", status]
-                  suspended: [spec, suspend]
-                  revision: [status, artifact, revision]
-                  url: [spec, url]
-              - groupVersionKind: {group: source.toolkit.fluxcd.io, version: v1, kind: HelmRepository}
-                metricNamePrefix: gotk
-                metrics:
-                  - name: resource_info
-                    help: The current state of a Flux HelmRepository resource.
-                    each:
-                      type: Info
-                      info:
-                        labelsFromPath:
-                          name: [metadata, name]
-                labelsFromPath:
-                  exported_namespace: [metadata, namespace]
-                  ready: [status, conditions, "[type=Ready]", status]
-                  suspended: [spec, suspend]
-                  revision: [status, artifact, revision]
-                  url: [spec, url]
     # VMSingle runs on the chart's defaults: retention "1" (one month, which
     # VictoriaMetrics counts as 31 days: the 30-day SLO window and the longest
     # calendar month for the Sloth dashboards) and a 20Gi PVC (about 16 GB at

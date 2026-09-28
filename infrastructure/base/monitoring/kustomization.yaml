@@ -5,8 +5,6 @@ resources:
   - helmrepository.yaml
   - helmrelease.yaml
   - sloth.yaml
-  - flux-alerts.yaml
-  - dashboards
 # Helm values kept in their own files, as ConfigMaps that helmrelease.yaml reads
 # through valuesFrom: Alertmanager's routing and the alert rules. A stable name
 # keeps the reference simple; the watch label makes Flux upgrade the release as
@@ -18,9 +16,9 @@ configMapGenerator:
     options:
       disableNameSuffixHash: true
       labels: {reconcile.fluxcd.io/watch: Enabled}
-  - name: alert-rules
+  - name: alerts
     namespace: monitoring
-    files: [alert-rules.yaml]
+    files: [alerts.yaml]
     options:
       disableNameSuffixHash: true
       labels: {reconcile.fluxcd.io/watch: Enabled}

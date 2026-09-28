@@ -11,7 +11,7 @@ resources:
 # the new pin:
 # https://github.com/prometheus-community/postgres_exporter/blob/v0.20.1/postgres_mixin/dashboards/postgres-overview.json
 # The same mixin's alerts stay in the monitoring chart (defaultRules in
-# infrastructure/base/monitoring/alert-rules.yaml): this layer doesn't wait for
+# infrastructure/base/monitoring/alerts.yaml): this layer doesn't wait for
 # the chart's CRDs.
 configMapGenerator:
   - name: dashboard-postgres

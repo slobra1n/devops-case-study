@@ -9,7 +9,7 @@
 alertmanager:
   config:
     global:
-      # Flux events (flux-alerts.yaml) carry no end time; Flux's docs suggest
+      # Flux events (../flux-monitoring/alerts.yaml) carry no end time; Flux's docs suggest
       # an hour. vmalert's alerts carry end times and are unaffected.
       resolve_timeout: 1h
     route:
