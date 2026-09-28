@@ -46,7 +46,7 @@ Flux applies one Kustomization per layer. `apps` waits for the other two:
 
 ```mermaid
 flowchart LR
-  infrastructure["infrastructure<br/>monitoring, Sloth"] --> apps["apps<br/>ml-api, backend-api, load-generator"]
+  infrastructure["infrastructure<br/>monitoring stack, Sloth,<br/>Flux monitoring"] --> apps["apps<br/>ml-api, backend-api, load-generator"]
   databases["databases<br/>postgres"] --> apps
 ```
 
@@ -63,9 +63,10 @@ How the signals flow:
 
 ```mermaid
 flowchart LR
-  targets["apps, postgres, node,<br/>Kubernetes, the stack"] -- scrape --> vmagent --> vmsingle[("VMSingle<br/>metrics, 31 days")]
-  sloth["Sloth<br/>(slo.yaml per app)"] -- rules --> vmalert
-  vmsingle --> vmalert --> alertmanager[Alertmanager]
+  targets["apps, postgres, Flux, node,<br/>Kubernetes, the stack"] -- scrape --> vmagent --> vmsingle[("VMSingle<br/>metrics, 31 days")]
+  rules["rules: published, mine (alerts.yaml),<br/>Sloth's (from each slo.yaml)"] --> vmalert
+  vmsingle <-- "query, write recorded series" --> vmalert
+  vmalert --> alertmanager[Alertmanager]
   flux["Flux<br/>notification-controller"] --> alertmanager
   containers["container logs"] --> vlagent --> vlsingle[("VLSingle<br/>logs, 31 days")]
   vmsingle --> grafana[Grafana]
