@@ -140,8 +140,10 @@ every service gets the same things without anyone writing rules or boards:
   Sloth's `sloth_severity` label, so a new service needs no routing change;
 - a row on High level Sloth SLOs and its own view on SLO / Detail. Both
   boards read Sloth's labels, so a new SLO appears without a dashboard change;
-- a Flux health check: an `slo.yaml` that Sloth can't turn into rules fails
-  the `apps` Kustomization.
+- two safety nets. An `slo.yaml` that Sloth can't turn into rules fails the
+  `apps` Kustomization, and Flux opens a ticket. An `slo.yaml` that is valid
+  but records nothing, for example a misspelled metric name, raises
+  `SLOHasNoData`.
 
 Teams and management get the same high-level view of every service: is it
 meeting its target, and how much error budget is left over the last 30 days.
@@ -208,27 +210,32 @@ a 50m CPU limit.
 | Source | Catches |
 |---|---|
 | Sloth, from each `slo.yaml` | An SLO burning its error budget. A fast burn (14.4 times the sustainable rate over 5 minutes and 1 hour) pages; a slow burn opens a ticket. A page silences the ticket of the same SLO. |
-| My rules in `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml` | `DeploymentUnavailable` (page): an app has had no ready pod for 1 minute. `ContainerOOMKilled` (ticket): a container restarted after reaching its memory limit. `ContainerMemoryNearLimit` (ticket): above 90% of the limit for 5 minutes. |
+| My rules in `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml` | `DeploymentUnavailable` (page): an app has had no ready pod for 1 minute. `ContainerOOMKilled` (ticket): a container restarted after reaching its memory limit. `ContainerMemoryNearLimit` (ticket): above 90% of the limit for 5 minutes. `SLOHasNoData` (ticket): an SLO has recorded no error ratio for 15 minutes, because its queries match nothing or no request reached the service; until it records again, its burn-rate alerts can't fire. |
 | My rules in `apps/base/backend-api/alerts.yaml` | `BackendDbPoolNearlyFull` (ticket): a pod has held 8 of its 10 connections for 1 minute. `BackendDbQueryErrors` (ticket): queries failed or found no free connection. |
 | Published rules (the chart's default rules, pinned) | Node, Kubernetes objects (crash loops, pods not ready, missing replicas), postgres-exporter, the monitoring and logging stack. |
-| Flux's notification-controller | A failed reconciliation of a Flux object (ticket). |
+| Flux's notification-controller | A Flux object that fails to apply or to become healthy (ticket), for example: a manifest the cluster rejects (the VictoriaMetrics operator's admission check refuses an invalid rule), an `slo.yaml` Sloth can't turn into rules, or a Deployment that never becomes ready. |
 
 I added my own rules because the SLOs can't see a full outage. They count
 requests inside the apps; when every pod fails readiness, no request arrives
 and the error ratio has nothing to count. The published pod alerts do fire,
 but as tickets after 15 minutes. `DeploymentUnavailable` pages for every
 workload outside `kube-system`, `flux-system` and `monitoring`, so a new app
-is covered without a rule change. The tickets name the cause.
+is covered without a rule change. The tickets name the cause. `SLOHasNoData`
+covers every SLO the same way, so it also needs no change per service.
 
-The app images have switches that produce incidents. I ran the first three
-on the cluster (the ml-api ones in a scratch namespace); the times count from
-the change:
+The app images have switches that produce incidents. I ran these on the
+cluster (the ml-api switches and the broken files in a scratch namespace); the
+times count from the change:
 
 | Incident | Alerts, in order |
 |---|---|
 | backend-api leaks DB connections (`CONN_RETURN_MODE=hold`) | 2.5 min: `BackendDbQueryErrors` (`pool_exhausted`). 3 min: `BackendDbPoolNearlyFull`. 4 min: `DeploymentUnavailable` page. No SLO alert: 6 requests got a 503, then none reached the app. |
 | ml-api leaks memory (`MEM_ALLOC_MB`; tested with 20 MB every 2 s and a 128Mi limit) | 80 s: `ContainerOOMKilled`. 3.7 min: `DeploymentUnavailable` page, once the restart backoff keeps the pod down for a minute. A slow leak raises `ContainerMemoryNearLimit` before the kill. |
 | ml-api fails its liveness probe (`HEALTH_TTL_SECONDS=30`) | The kubelet restarts both pods about once a minute. 7 min: `KubePodCrashLooping` pending (a ticket 15 minutes later). 8 min: `DeploymentUnavailable` page, once the backoff keeps both pods down for a minute. |
+| Traffic stops (load generator scaled to 0) | 5.5 min: the SLOs' 5-minute ratios stop, because 0/0 records nothing. About 21 min: `SLOHasNoData` for every SLO of both apps (tested with a shorter wait; the rule waits 15 minutes). |
+| An `slo.yaml` Sloth can't turn into rules | Under 2 min: `FluxKustomizationHealthcheckfailed`, and the Kustomization isn't Ready. |
+| An `slo.yaml` with a misspelled metric name | Sloth and Flux report success. About 20 min: `SLOHasNoData` for that SLO only (tested with a shorter wait). |
+| An alert rule with an invalid expression | The admission check rejects it, nothing reaches vmalert. Under 2 min: `FluxKustomizationReconciliationfailed`. |
 
 `DeploymentUnavailable` stays firing for 5 minutes after the pods recover
 (`keep_firing_for`), so a crash loop pages once instead of flapping.
@@ -240,14 +247,18 @@ These follow from the rule definitions; I didn't run them:
 | ml-api or backend-api gets slow (`RESPONSE_OVERHEAD_MS`, `QUERY_OVERHEAD_MS`) | Latency SLO page once 14.4% of the last hour's requests were slow: about 9 minutes when every request is slow. |
 | backend-api answers 500 with its pods Ready (missing `documents` table) | `BackendDbQueryErrors` (`error`) within about a minute, then the availability SLO page, about 9 minutes after every request started failing. |
 | postgres down | `PostgreSQLDown` after 1 minute. backend-api's `/ready` fails, so `DeploymentUnavailable` pages for backend-api. |
-| Traffic stops (load generator gone, a broken Service) | Nothing: no errors, and the pods stay Ready. See [with more time](#with-more-time). |
 
 ## Decisions and trade-offs
 
 - **A layer per dependency level.** I wanted the apps to wait for postgres.
   Flux's `dependsOn` orders only Flux objects, and postgres shared the `apps`
-  Kustomization with the apps, so postgres moved into its own `databases`
-  layer. `apps` also waits for `infrastructure`, as in Flux's own example.
+  Kustomization with the apps, so postgres needed its own Kustomization. I
+  moved it out of `apps/` into its own `databases/` layer: a Kustomization
+  that pointed into `apps/` would sit in a folder that says "app" while Flux
+  treats it as a separate step, which confuses whoever maintains it. So the
+  rule is one top-level folder, one layer, one Flux Kustomization. Another
+  database later is a new folder in `databases/`, with no change in
+  `clusters/`. `apps` also waits for `infrastructure`, as in Flux's own example.
   Trade-off: if the monitoring install breaks, new app deploys wait until it
   works again; running apps keep running. Infrastructure skips the
   `controllers/` and `configs/` split of Flux's example: the only objects that
@@ -334,9 +345,8 @@ These follow from the rule definitions; I didn't run them:
 
 - **Measure availability where the caller sees it,** through an ingress or
   metrics in the load generator. An outage or a broken Service would then
-  burn error budget instead of pausing it, and `DeploymentUnavailable` would
-  become a backup. Until then, an alert on a request rate of 0 would catch
-  traffic that stops.
+  burn error budget right away, instead of pausing it until
+  `DeploymentUnavailable` or `SLOHasNoData` catches it.
 - **App changes** (the images aren't in this repo): ml-api counts its real
   response status; backend-api creates its table with retries, or a migration
   Job does; both apps log JSON with a `level` field; backend commits after its

@@ -66,6 +66,7 @@ published rules plus five of our own for the gaps they leave, routed to a
 | `ContainerMemoryNearLimit` | same | warning | a container's working set has been above 90% of its memory limit for 5 minutes |
 | `BackendDbPoolNearlyFull` | `apps/base/backend-api/alerts.yaml` | warning | a backend-api pod has held 8 or more of its 10 pool connections for 1 minute |
 | `BackendDbQueryErrors` | same | warning | any backend-api query ended `pool_exhausted` or `error` in the last 5 minutes |
+| `SLOHasNoData` | `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml` (VMRule `victoria-metrics-k8s-stack-slo-alerts`, since 2026-09-28) | warning | an SLO in `sloth_slo_info` has had no `slo:sli_error:ratio_rate5m` for 15 minutes: its queries match nothing, or no request arrived (0/0 records nothing) |
 
   Each has a `dashboard` link: the Namespace (Pods) or Pod board, or the apps
   board for the backend rules.

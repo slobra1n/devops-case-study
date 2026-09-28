@@ -186,9 +186,12 @@ spec:
         victorialogs:
           url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/v1.52.0/deployment/docker/rules/alerts-vlogs.yml
     # My rules for gaps in the published ones (README, "Alerts and what they
-    # catch"). A pod that fails readiness leaves its Service, so the app's own
-    # metrics see no traffic and its SLOs stay green: these rules watch the pods.
-    # The chart renders them as VMRule victoria-metrics-k8s-stack-workload-alerts.
+    # catch"). The chart renders each key as VMRule
+    # victoria-metrics-k8s-stack-<key>.
+    # - workload-alerts: a pod that fails readiness leaves its Service, so the
+    #   app's own metrics see no traffic and its SLOs stay green; these rules
+    #   watch the pods.
+    # - slo-alerts: an SLO that records nothing can never alert.
     # They ship in the chart because a VMRule outside it fails Flux's dry-run on
     # a fresh cluster, before the chart has installed the CRD. extraRules, not
     # extraObjects: the chart runs extraObjects through Helm's tpl, which would
@@ -242,6 +245,26 @@ spec:
                   summary: "{{ $labels.namespace }}/{{ $labels.pod }} {{ $labels.container }} uses {{ $value | humanizePercentage }} of its memory limit"
                   description: "Container {{ $labels.container }} has used more than 90% of its memory limit for 5 minutes. At 100% the kernel kills it."
                   dashboard: "{{ $externalURL }}/d/6581e46e4e5c7ba40a07646395ef7b23?var-namespace={{ $labels.namespace }}&var-pod={{ $labels.pod }}"
+      slo-alerts:
+        groups:
+          - name: slo-alerts
+            rules:
+              # Every SLO Sloth knows (sloth_slo_info) without a 5-minute error
+              # ratio. A misspelled or renamed metric in slo.yaml is valid, so
+              # Sloth and Flux report success while the SLO records nothing.
+              # The same happens when no request reaches the service: the ratio
+              # is 0/0, which VictoriaMetrics drops.
+              # ponytail: 5-minute window, so a service idle for 15 minutes
+              # fires too; give low-traffic services a longer window here.
+              - alert: SLOHasNoData
+                expr: sloth_slo_info unless on (sloth_id) slo:sli_error:ratio_rate5m
+                for: 15m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "SLO {{ $labels.sloth_service }}/{{ $labels.sloth_slo }} has recorded no data for 15 minutes"
+                  description: "Its SLI queries match no series, or no request reached the service. Check the metric names in the service's slo.yaml against its /metrics, then its request rate. Until it records again, none of its burn-rate alerts can fire."
+                  dashboard: "{{ $externalURL }}/d/slo-detail?var-service={{ $labels.sloth_service }}&var-slo={{ $labels.sloth_slo }}"
     # Component dashboards: the chart's published set, downloaded by the same
     # sync-job and pinned the same way. One board per question: kube-prometheus'
     # Compute Resources Cluster -> Namespace (Pods) -> Pod (linked) and Node
