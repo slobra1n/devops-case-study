@@ -138,9 +138,10 @@ every service gets the same things without anyone writing alert rules or SLO
 boards:
 
 - recording rules for each SLI over every window from 5 minutes to 30 days;
-- multi-window burn-rate alerts: a page when the service burns its error
-  budget fast, a ticket when it burns slowly. Alertmanager routes them by
-  Sloth's `sloth_severity` label, so a new service needs no routing change;
+- multi-window burn-rate alerts ([how they decide](#slo-alerts)): a page when
+  the service burns its error budget fast, a ticket when it burns slowly.
+  Alertmanager routes them by Sloth's `sloth_severity` label, so a new service
+  needs no routing change;
 - a row on High level Sloth SLOs and its own view on SLO / Detail. Both
   boards read Sloth's labels, so a new SLO appears without a dashboard change;
 - two safety nets. An `slo.yaml` that Sloth can't turn into rules fails the
@@ -339,7 +340,7 @@ a 50m CPU limit.
 
 | Source | Catches |
 |---|---|
-| Sloth, from each `slo.yaml` | An SLO burning its error budget. A fast burn (14.4 times the sustainable rate over 5 minutes and 1 hour) pages; a slow burn opens a ticket. A page silences the ticket of the same SLO. |
+| Sloth, from each `slo.yaml` | An SLO burning its error budget: a page when it burns fast, a ticket when it burns slowly ([how they decide](#slo-alerts)). A page silences the ticket of the same SLO. |
 | My rules in `extraRules` in `infrastructure/base/monitoring/alerts.yaml` | `DeploymentUnavailable` (page): an app has had no ready pod for 1 minute. `ContainerOOMKilled` (ticket): a container restarted after reaching its memory limit. `ContainerMemoryNearLimit` (ticket): above 90% of the limit for 5 minutes. `SLOHasNoData` (ticket): an SLO has recorded no error ratio for 15 minutes, because its queries match nothing or no request reached the service; until it records again, its burn-rate alerts can't fire. |
 | My rules in `apps/base/backend-api/alerts.yaml` | `BackendDbPoolNearlyFull` (ticket): a pod has held 8 of its 10 connections for 1 minute. `BackendDbQueryErrors` (ticket): queries failed or found no free connection. |
 | Published rules, pinned: kube-prometheus, VictoriaMetrics' and VictoriaLogs' own rules, the postgres-exporter mixin | Node, Kubernetes objects (crash loops, pods not ready, missing replicas), postgres-exporter, the monitoring and logging stack. |
@@ -359,6 +360,45 @@ memory and a failing health check, are what `ContainerMemoryNearLimit`,
 `ContainerOOMKilled`, `KubePodCrashLooping` and `DeploymentUnavailable` catch
 for every app, and it counts no errors a rule could read (see
 [Known issues](#known-issues)).
+
+### SLO alerts
+
+Sloth's `alert_rules` plugin (`sloth.yaml`) writes two alerts per SLO. Both
+carry the name from `alerting.name` in `slo.yaml`, for example
+`MlApiPredictLatency`: one with `sloth_severity=page`, one with
+`sloth_severity=ticket`. The four SLOs give eight alerts:
+`MlApiPredictAvailability`, `MlApiPredictLatency`,
+`BackendApiProcessAvailability` and `BackendApiProcessLatency`, each as page
+and ticket.
+
+Each alert compares the SLO's bad-request ratio (5xx, or slower than the
+threshold for a latency SLO) with the error budget, 1% at a 99% target. The
+burn rate is that ratio divided by the budget: at 1 the budget lasts exactly
+30 days, at 14.4 it is gone in about 2 days. An alert needs two windows above
+the same burn rate. The long one shows the problem is big enough to matter;
+the short one shows it is still happening, so the alert resolves soon after a
+fix and needs no `for:` wait. These are the SRE workbook's multi-window,
+multi-burn-rate alerts, with Sloth's defaults for a 30-day period:
+
+| Severity | Fires when both windows burn faster than | Bad requests at 99% | Budget spent if it lasts the long window |
+|---|---|---|---|
+| page | 14.4× over 1 hour and 5 minutes | over 14.4% | 2% of the 30 days' budget in an hour |
+| page | 6× over 6 hours and 30 minutes | over 6% | 5% in 6 hours |
+| ticket | 3× over 1 day and 2 hours | over 3% | 10% in a day |
+| ticket | 1× over 3 days and 6 hours | over 1% | 10% in 3 days |
+
+Every alert carries `sloth_service`, `sloth_slo` and `sloth_id`, a title such
+as "(page) ml-api predict-latency SLO error budget burn rate is too fast", and
+a `dashboard` link to SLO / Detail for that SLO. Alertmanager sends
+`sloth_severity=page` to `page` and the ticket to `ticket`, groups by
+`sloth_id`, and lets a firing page silence the ticket of the same SLO, so one
+incident notifies once. What a page means in requests at today's traffic is
+under [99% targets](#decisions-and-trade-offs).
+
+To change an SLO's target or name, edit its `slo.yaml`. The windows and
+factors are Sloth's defaults and the same for every SLO.
+
+### Incidents and the alerts they raise
 
 The app images have environment switches that cause incidents. I ran each
 incident below on the cluster (the ml-api switches and the broken files in a
