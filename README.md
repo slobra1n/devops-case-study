@@ -1,15 +1,15 @@
 # DevOps case study: GitOps and observability on k3d
 
-Flux deploys two Python APIs, a load generator and PostgreSQL from this
-repository to a local k3d cluster. I added metrics, SLOs with burn-rate alerts,
-platform alerts, dashboards and logs, built from the VictoriaMetrics stack and
-Sloth. Flux deploys all of it from this repository.
+This repository runs two Python APIs, a load generator and PostgreSQL on a
+local k3d cluster, deployed by Flux. On top I added metrics, SLOs with
+burn-rate alerts, platform alerts, dashboards and logs, built from the
+VictoriaMetrics stack and Sloth and deployed the same way.
 
 The case study asks three questions, answered in these sections:
 
-- [What I monitor and why](#what-i-monitor-and-why), with
-  [why SLOs with Sloth](#why-slos-with-sloth) and the
-  [dashboard design](#dashboards)
+- [What I monitor and why](#what-i-monitor-and-why), including
+  [SLOs with Sloth](#why-slos-with-sloth), [dashboards](#dashboards) and
+  [logs](#logs)
 - [Alerts and what they catch](#alerts-and-what-they-catch)
 - [Trade-offs](#decisions-and-trade-offs) and
   [what I'd do with more time](#with-more-time)
@@ -132,7 +132,8 @@ app needs no monitoring change to be scraped. VMSingle keeps 31 days.
 I built the monitoring around SLOs so that it scales with the number of
 services. A team describes what "working" means for its service in one file,
 `slo.yaml`, next to its manifests. The Sloth controller does the rest, and
-every service gets the same things without anyone writing rules or boards:
+every service gets the same things without anyone writing alert rules or SLO
+boards:
 
 - recording rules for each SLI over every window from 5 minutes to 30 days;
 - multi-window burn-rate alerts: a page when the service burns its error
@@ -189,28 +190,142 @@ you from "is something wrong" to "which component":
 | Components | Kubernetes / Compute Resources (Cluster → Namespace → Pod), Node Exporter / Nodes | Where do CPU, memory, disk and network go? |
 | Components | Flux Cluster Stats, Postgres Overview, VictoriaMetrics (single-node, vmagent, vmalert, operator), VictoriaLogs (single-node, vlagent) | Is this component healthy? |
 
-I wrote the two app boards. Each lives next to its app, in
+I wrote the two app boards. Each lives next to its app in
 `apps/base/<app>/dashboard.json`, like its `slo.yaml` and alerts, so a team
-owns its board the way it owns its SLOs, and a new service adds its board
-without touching the monitoring stack. Grafana's sidecar loads labelled
-board ConfigMaps from every namespace, and names each file after its
-namespace and ConfigMap, so every app can use the same `dashboard.json`. Every other board comes unedited from
-a published upstream project, pinned to the version that runs here. Alerts
-link to the board that explains them.
+owns its board the way it owns its SLOs, and a new service adds a board
+without touching the monitoring stack. Grafana's sidecar loads labelled board
+ConfigMaps from every namespace and names each file after its namespace and
+ConfigMap, so every app can keep the file name `dashboard.json`. Every other
+board comes unedited from a published upstream project, pinned to the version
+that runs here. Alerts link to the board that explains them.
+
+#### Change an app board
+
+Git is the only place a board change lasts. Grafana refuses to save over a
+board it loaded from a file, and it keeps no database volume here, so anything
+saved only in the UI disappears at its next restart.
+
+1. Open the board, click **Make editable** and make your change.
+2. Choose **Save → Save as copy**. The copy is an ordinary board you can save
+   as often as you like.
+3. On the copy, open **Export → Export as code**, expand **Advanced options**,
+   pick the **Classic** model and copy the JSON. Grafana 13 exports its newer
+   v2 format by default; the files here use the classic model, like the
+   upstream boards.
+4. Paste the JSON over `apps/base/<app>/dashboard.json`. Put back the file's
+   `uid`, `title` and `tags` (the `apps` tag fills the `Apps` menu), set
+   `"id": null` and `"editable": false`, and read `git diff` to see what
+   changed. Delete the copy in Grafana.
+5. Commit and push. Flux updates the ConfigMap, and the sidecar reloads the
+   board without a Grafana restart.
+
+A small change, such as a threshold or a query, is quicker to make in the JSON
+directly. `kubectl kustomize apps/devops-cs` renders the ConfigMaps, so you can
+check the file before you push.
+
+#### Dashboards in a real setup
+
+With many services I'd keep the principle that a board ships with the code it
+describes, and add three things:
+
+1. **One shared board for the standard view.** Once every service exposes the
+   same HTTP metrics (OpenTelemetry's HTTP server metrics, for example), one
+   board with a `service` variable shows rate, errors, latency and pods for any
+   service, as the Sloth boards already do for any SLO. Most services then
+   need no board of their own.
+2. **Boards as code in the service's repository** for what the shared board
+   can't show, such as business metrics or a database pool. Teams write them
+   with Grafana's
+   [Foundation SDK](https://grafana.com/docs/grafana/latest/as-code/observability-as-code/foundation-sdk/)
+   (typed builders in Go, TypeScript, Python and more) on top of a small
+   library the platform team owns: the standard rows, units, and links to the
+   SLO and the logs. CI builds the JSON, and the service's deployment ships
+   it, as a labelled ConfigMap like here or as a `GrafanaDashboard` object for
+   the Grafana Operator. A board then changes in the same pull request as the
+   metric it shows, and it comes and goes with the service.
+3. **Read-only boards in production.** People try panels out in the UI and
+   commit the result, as above.
+   [Git Sync](https://grafana.com/docs/grafana/latest/as-code/observability-as-code/git-sync/),
+   generally available since April 2026, turns a save in the UI into a pull
+   request. It syncs one repository path per connection, though, and Grafana
+   advises against a connection per team or service, so it suits a central
+   dashboards repository better than boards spread across service folders.
 
 ### Logs
 
-VLAgent reads every container's log on the node, and VLSingle keeps 31 days.
-Alerts cover the logging stack's own health, not log content.
+vlagent runs on every node, reads every container's log and ships it to
+VLSingle, which keeps 31 days. Read logs in Grafana (Explore, data source
+`VictoriaLogs`) or in VictoriaLogs' own UI. Alerts cover the logging stack's
+own health, not log content.
+
+#### Why VictoriaLogs, not Loki
+
+- **One stack.** VictoriaLogs comes with the chart and operator that already
+  run metrics and alerting, so logs took two switches, `vlsingle` and
+  `vlagent`, plus the Grafana data source. Loki needs its own chart, storage
+  configured by hand (its bundled MinIO is deprecated) and an agent. Promtail
+  has reached end of life, so the agent is Grafana Alloy, with its own
+  pipeline config.
+- **Loki wouldn't save the level rules below.** Loki 3.6 reads a `level`
+  field from JSON and logfmt lines. In plain text it searches for fixed words
+  and checks `info` first. It misses the apps' `ERROR:` lines, postgres'
+  `ERROR:` and VictoriaMetrics' tab-separated levels, and it tags any line
+  that contains "info" (a URL, `sloth_slo_info`) as info. Fixing that takes
+  regex rules in Alloy: the same rules in another place.
+- **What I give up:** Grafana's Logs Drilldown app, which works only with
+  Loki, and a built-in data source. Grafana downloads the VictoriaLogs plugin
+  at start.
+
+#### Log levels for plain-text logs
+
+vlagent turns the fields of a JSON log line into log fields, so a JSON line
+with a `level` field gets its level for free; Flux's controllers log that way.
+Most containers here log plain text, and neither vlagent nor VictoriaLogs finds
+a level in plain text. Without help, Grafana shows those lines as level
+"unknown", and its level filter can't separate errors from the rest.
+
+So the Grafana data source has five regex rules, one per level (critical,
+error, warning, info, debug), matched against the message. The first match
+wins, and a real `level` field beats all of them. Together they cover the
+formats running here:
+
+| Format | Example | Written by |
+|---|---|---|
+| Python/uvicorn prefix | `INFO:     Started server process [1]` | ml-api, backend-api |
+| logfmt | `level=info msg="Installing plugin"` | Grafana |
+| Tab-separated | `2026-09-28T08:57:01.259Z\tinfo\t…` | VictoriaMetrics components |
+| postgres | `… UTC [318] ERROR:  duplicate key value …` | postgres |
+| Bracketed | `[WARNING] No files matching import glob pattern …` | CoreDNS |
+| klog | `I0928 08:56:08.798366       1 server.go:223] …` | kube-state-metrics |
+| Coloured logrus | `\x1b[36mINFO\x1b[0m[0003] Plugins loaded` | Sloth |
+
+Lines without a level word stay unknown: the load generator's output and the
+lines of a Python traceback. VictoriaLogs also stores a traceback one line per
+entry; read it back whole with `… "Traceback" | stream_context after 30`. The
+rules live in `jsonData.logLevelRules` of the `VictoriaLogs` data source in
+`infrastructure/base/monitoring/helmrelease.yaml`.
+
+#### JSON logs as a platform rule
+
+I'd rather the apps logged JSON, and on a platform I run it would be a hard
+rule for every service: one JSON object per line with at least a timestamp,
+`level` and `message`, plus fields such as a request or trace ID. JSON is the
+more standard format. vlagent turns each field into a log field you can query
+(`level:=error`), a traceback stays one entry, and nobody maintains level
+regexes or a log shipper config. The app images aren't in this repository, so
+the rules stay until the apps change. Third-party components get JSON output
+switched on where they offer it, and the level rules cover the rest.
 
 ## Alerts and what they catch
 
 Every alert has a severity. Alertmanager sends Sloth's fast burns and
 `severity=critical` to the receiver `page`, and everything else to `ticket`.
-No receiver has an integration yet, so you see alerts in Alertmanager and
-Grafana only. `Watchdog` fires all the time to prove the pipeline works. Info
-alerts also fire on a healthy cluster, and Alertmanager keeps them silent
-(`InfoInhibitor`): `RecordingRulesNoData` for `count:up0`, because
+No receiver has an integration yet, so you see alerts only in Alertmanager and
+Grafana.
+
+A healthy cluster still shows a few alerts. `Watchdog` fires all the time to
+prove the pipeline works. Two info alerts fire too, and Alertmanager silences
+them through `InfoInhibitor`: `RecordingRulesNoData` for `count:up0`, because
 kube-prometheus' count of down targets records nothing while every target is
 up, and at times `CPUThrottlingHigh` for the Sloth controller, whose chart sets
 a 50m CPU limit.
@@ -220,7 +335,7 @@ a 50m CPU limit.
 | Sloth, from each `slo.yaml` | An SLO burning its error budget. A fast burn (14.4 times the sustainable rate over 5 minutes and 1 hour) pages; a slow burn opens a ticket. A page silences the ticket of the same SLO. |
 | My rules in `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml` | `DeploymentUnavailable` (page): an app has had no ready pod for 1 minute. `ContainerOOMKilled` (ticket): a container restarted after reaching its memory limit. `ContainerMemoryNearLimit` (ticket): above 90% of the limit for 5 minutes. `SLOHasNoData` (ticket): an SLO has recorded no error ratio for 15 minutes, because its queries match nothing or no request reached the service; until it records again, its burn-rate alerts can't fire. |
 | My rules in `apps/base/backend-api/alerts.yaml` | `BackendDbPoolNearlyFull` (ticket): a pod has held 8 of its 10 connections for 1 minute. `BackendDbQueryErrors` (ticket): queries failed or found no free connection. |
-| Published rules, pinned: kube-prometheus, VictoriaMetrics' and VictoriaLogs' own rules, the postgres-exporter mixin | Node, Kubernetes objects (crash loops, pods not ready, missing replicas), postgres-exporter, the monitoring and logging stack. `Watchdog` fires all the time as a heartbeat. |
+| Published rules, pinned: kube-prometheus, VictoriaMetrics' and VictoriaLogs' own rules, the postgres-exporter mixin | Node, Kubernetes objects (crash loops, pods not ready, missing replicas), postgres-exporter, the monitoring and logging stack. |
 | Flux's notification-controller | A Flux object that fails to apply or to become healthy (ticket), for example: a manifest the cluster rejects (the VictoriaMetrics operator's admission check refuses an invalid rule), an `slo.yaml` Sloth can't turn into rules, or a Deployment that never becomes ready. |
 
 I added my own rules because the SLOs can't see a full outage. They count
@@ -231,9 +346,9 @@ workload outside `kube-system`, `flux-system` and `monitoring`, so a new app
 is covered without a rule change. The tickets name the cause. `SLOHasNoData`
 covers every SLO the same way, so it also needs no change per service.
 
-The app images have switches that produce incidents. I ran these on the
-cluster (the ml-api switches and the broken files in a scratch namespace); the
-times count from the change:
+The app images have environment switches that cause incidents. I ran each
+incident below on the cluster (the ml-api switches and the broken files in a
+scratch namespace). Times count from the change:
 
 | Incident | Alerts, in order |
 |---|---|
@@ -268,11 +383,13 @@ These follow from the rule definitions; I didn't run them:
   database later is a new folder in `databases/`, with no change in
   `clusters/`. `apps` also waits for `infrastructure`, as in Flux's own example.
   Trade-off: if the monitoring install breaks, new app deploys wait until it
-  works again; running apps keep running. Infrastructure skips the
-  `controllers/` and `configs/` split of Flux's example: the only objects that
-  need the chart's CRDs ship inside the chart (`extraObjects`, and my rules in
-  `extraRules`), and Helm installs CRDs first. A CRD-based object outside the
-  chart would fail Flux's dry-run on a fresh cluster.
+  works again; running apps keep running.
+- **No `controllers/` and `configs/` split in infrastructure.** Flux's example
+  splits them so that objects which need a CRD apply after the chart that
+  installs it. Here the only such objects ship inside the chart
+  (`extraObjects`, and my rules in `extraRules`), and Helm installs CRDs first.
+  A CRD-based object outside the chart would fail Flux's dry-run on a fresh
+  cluster.
 - **`base/` plus a cluster overlay in every layer.** Every cluster runs the
   same definitions, and a cluster that needs something different (a chart
   version, a Secret, a volume size) changes only that, in one place. With one
@@ -286,8 +403,8 @@ These follow from the rule definitions; I didn't run them:
   same `prometheus.io` annotations, its operator turns `PrometheusRule`
   objects (what Sloth writes) into its own rules, and Grafana reads it as a
   Prometheus data source. The same chart and operator also bring alerting and
-  logs (VictoriaLogs). Loki would add a second chart and its own agent
-  (Grafana Alloy).
+  logs. [Logs](#why-victorialogs-not-loki) explains why VictoriaLogs and not
+  Loki.
 - **Published rules and dashboards over hand-written ones,** pinned to the
   versions that run here. The Kubernetes, node and Alertmanager rules, the
   Compute Resources boards and the shape of the Alertmanager config come from
@@ -346,12 +463,9 @@ These follow from the rule definitions; I didn't run them:
   burn-rate alerts can't fire. `DeploymentUnavailable` still pages when ml-api
   has no ready pod. The SLO needs no change once the app counts its real
   status.
-- **Plain-text logs.** The apps log plain text, so Grafana shows a level only
-  through the regex rules in the VictoriaLogs data source, and Python
-  tracebacks arrive one line per entry. Read a traceback back with
-  `… "Traceback" | stream_context after 30`. JSON logs in the apps would fix
-  both: vlagent turns JSON fields into log fields, so levels need no rules and
-  a traceback stays one entry.
+- **Plain-text logs.** The apps log plain text, so levels come from regex
+  rules in the Grafana data source, and a Python traceback arrives one line
+  per entry. See [Logs](#logs).
 - **Three alerts off on purpose.** `PostgresHasTooManyRollbacks`: backend's
   `/ready` runs `SELECT 1`, and the connection pool rolls that back on every
   call. Two on this cluster only, both from the Docker Desktop VM's clock:
@@ -371,10 +485,11 @@ These follow from the rule definitions; I didn't run them:
   response status; backend-api creates its table with retries, or a migration
   Job does; both apps log JSON with a `level` field; backend commits after its
   readiness `SELECT 1`.
-- **Shorter `slo.yaml` files:** with one metric convention across services
-  (OpenTelemetry's HTTP server metrics, for example), a shared Sloth SLI
-  plugin would build the queries, and a team would only name its endpoint and
-  target.
+- **One metric convention across services** (OpenTelemetry's HTTP server
+  metrics, for example). A shared Sloth SLI plugin would then build the
+  queries, so a team only names its endpoint and target, and one shared board
+  would replace the standard rows of the app boards (see
+  [Dashboards in a real setup](#dashboards-in-a-real-setup)).
 - **A notification channel** for `page` and `ticket`, after SOPS and age, and
   a dead man's switch on `Watchdog`.
 - **CI** once changes go through pull requests: render every layer, validate
@@ -416,7 +531,7 @@ docs/                      agent working notes (specs, plans), the first inspect
 | Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
 | Change an alert rule | SLO alerts: the target in `slo.yaml`, the plugin chain in `sloth.yaml`. My platform-wide rules: `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml`; app-specific ones: `apps/base/<app>/alerts.yaml`. Published rules: `defaultRules` in `helmrelease.yaml` (`rules.<AlertName>.enabled: false` switches one off; per cluster in the overlay) |
 | Change where alerts go | `alertmanager.config` in `helmrelease.yaml` |
-| Add or change a dashboard | An app's board: `apps/base/<app>/dashboard.json` plus the `configMapGenerator` entry in that app's `kustomization.yaml`. A component's board (Flux, Postgres): `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's boards: `defaultDashboards` in `helmrelease.yaml`. Sloth's boards: `grafana.dashboards` (grafana.com ID and revision) |
+| Add or change a dashboard | An app's board: `apps/base/<app>/dashboard.json` plus the `configMapGenerator` entry in that app's `kustomization.yaml` ([how](#change-an-app-board)). A component's board (Flux, Postgres): `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's boards: `defaultDashboards` in `helmrelease.yaml`. Sloth's boards: `grafana.dashboards` (grafana.com ID and revision) |
 | Use a different dashboard on one cluster | A `configMapGenerator` entry with the same name and `behavior: replace` in the cluster's overlay: `apps/<cluster>/<app>/kustomization.yaml` for an app's board, `infrastructure/<cluster>/monitoring/kustomization.yaml` for a component's. A HelmRelease patch of `defaultDashboards` for a chart board |
 
 ## Working notes
