@@ -212,7 +212,7 @@ a 50m CPU limit.
 | Sloth, from each `slo.yaml` | An SLO burning its error budget. A fast burn (14.4 times the sustainable rate over 5 minutes and 1 hour) pages; a slow burn opens a ticket. A page silences the ticket of the same SLO. |
 | My rules in `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml` | `DeploymentUnavailable` (page): an app has had no ready pod for 1 minute. `ContainerOOMKilled` (ticket): a container restarted after reaching its memory limit. `ContainerMemoryNearLimit` (ticket): above 90% of the limit for 5 minutes. `SLOHasNoData` (ticket): an SLO has recorded no error ratio for 15 minutes, because its queries match nothing or no request reached the service; until it records again, its burn-rate alerts can't fire. |
 | My rules in `apps/base/backend-api/alerts.yaml` | `BackendDbPoolNearlyFull` (ticket): a pod has held 8 of its 10 connections for 1 minute. `BackendDbQueryErrors` (ticket): queries failed or found no free connection. |
-| Published rules (the chart's default rules, pinned) | Node, Kubernetes objects (crash loops, pods not ready, missing replicas), postgres-exporter, the monitoring and logging stack. |
+| Published rules, pinned: kube-prometheus, VictoriaMetrics' and VictoriaLogs' own rules, the postgres-exporter mixin | Node, Kubernetes objects (crash loops, pods not ready, missing replicas), postgres-exporter, the monitoring and logging stack. `Watchdog` fires all the time as a heartbeat. |
 | Flux's notification-controller | A Flux object that fails to apply or to become healthy (ticket), for example: a manifest the cluster rejects (the VictoriaMetrics operator's admission check refuses an invalid rule), an `slo.yaml` Sloth can't turn into rules, or a Deployment that never becomes ready. |
 
 I added my own rules because the SLOs can't see a full outage. They count
@@ -281,9 +281,21 @@ These follow from the rule definitions; I didn't run them:
   logs (VictoriaLogs). Loki would add a second chart and its own agent
   (Grafana Alloy).
 - **Published rules and dashboards over hand-written ones,** pinned to the
-  versions that run here. I made two exceptions, the apps board and five alert
-  rules: no published set knows these apps' metrics, and the published pod
-  alerts only open tickets after 15 minutes.
+  versions that run here. The Kubernetes, node and Alertmanager rules, the
+  Compute Resources boards and the shape of the Alertmanager config come from
+  [kube-prometheus](https://github.com/prometheus-operator/kube-prometheus),
+  the Prometheus Operator project's reference setup. kube-prometheus-stack,
+  the usual Prometheus Helm chart, ships the same rules. The VictoriaMetrics
+  chart points at kube-prometheus by default, but at its `main` branch; I
+  pinned `v0.19.0`. They run on VictoriaMetrics unchanged, because they need
+  only PromQL and the metric names of the same exporters (kubelet,
+  kube-state-metrics, node-exporter), not Prometheus itself. The chart's sync
+  job turns each `PrometheusRule` file into a `VMRule`. k3s needed one
+  adaptation: it serves the API server's metrics on the kubelet's endpoint, so
+  `KubeClientErrors` reads `job="kubelet"`, and the API server availability
+  rules are off. My own exceptions are the apps board and six alert rules: no
+  published set knows these apps' metrics, and the published pod alerts only
+  open tickets after 15 minutes.
 - **SLOs from the apps' own metrics.** An earlier version measured ml-api with
   a blackbox probe; I removed the blackbox exporter. The kubelet already
   probes `/health` and `/ready`, and `DeploymentUnavailable` covers the

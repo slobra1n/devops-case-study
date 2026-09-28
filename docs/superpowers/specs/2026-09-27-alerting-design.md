@@ -8,7 +8,7 @@
 
 Alert on what users feel (SLO burn rates) and on what breaks the platform
 (nodes, pods, kubelet, scrape targets, VictoriaMetrics, postgres, Flux), with
-published rules plus five of our own for the gaps they leave, routed to a
+published rules plus six of our own for the gaps they leave, routed to a
 `page` and a `ticket` receiver. No notification leaves the cluster yet.
 
 ## Decisions
@@ -102,7 +102,7 @@ published rules plus five of our own for the gaps they leave, routed to a
 1. All Flux Kustomizations and HelmReleases Ready; the sync-job Job completed.
 2. vmalert: 34 default groups (179 alerts, 53 recording rules, including
    VictoriaLogs' 3 groups), the Sloth rules (60 recording, 8 alerts) and our
-   2 groups (5 alerts), no rule errors.
+   3 groups (6 alerts), no rule errors.
 3. While healthy, only `Watchdog` (→ `watchdog`) and `InfoInhibitor` (→
    `null`) fire; info-level alerts are silenced by `InfoInhibitor`.
 4. `amtool config routes test`: Watchdog → `watchdog`, Sloth page → `page`,
