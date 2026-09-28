@@ -23,8 +23,9 @@ configMapGenerator:
   - name: dashboard-postgres
     files: [components/postgres.json]
     options: {annotations: {grafana_folder: Components}}
-  # Ours, the only hand-written board: request rate, errors and duration per
-  # app, from the apps' own metrics. No published board fits their metric names.
+  # Ours, the only hand-written board: per app, rate, errors and duration, then
+  # ready pods, memory and the database pool, from the apps' own metrics and
+  # kube-state-metrics. No published board fits the apps' metric names.
   - name: dashboard-apps-red
     files: [apps/red.json]
     options: {annotations: {grafana_folder: Apps}}

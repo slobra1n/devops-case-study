@@ -326,6 +326,7 @@ docs/                      agent working notes (specs, plans), the first inspect
 | See how a component is defined | `<layer>/base/<component>/` |
 | Change something for one cluster (version, Secret, size) | `<layer>/<cluster>/<component>/` |
 | See what a cluster runs and in what order | `clusters/<cluster>/` |
+| See what tools generate (don't edit it: the tool overwrites it; change the source) | In git: only `clusters/<cluster>/flux-system/gotk-*.yaml`, written by `flux bootstrap`. In the cluster: Sloth's rules, `kubectl get prometheusrules,vmrules -n <app>` (source: `apps/base/<app>/slo.yaml`); the chart sync job's rules and boards, `kubectl -n monitoring get vmrules,configmaps -l app.kubernetes.io/managed-by=sync-job` (source: `defaultRules` and `defaultDashboards` in `helmrelease.yaml`) |
 | Add an infrastructure component (cert-manager, for example) | `infrastructure/base/<component>/` + `infrastructure/<cluster>/<component>/` + one line in `infrastructure/<cluster>/kustomization.yaml` |
 | Add a cluster | `clusters/<cluster>/` + a `<layer>/<cluster>/` overlay per layer |
 | Add a top-level layer folder | Also add `!/<folder>` to `.sourceignore`: Flux downloads only the folders listed there |
