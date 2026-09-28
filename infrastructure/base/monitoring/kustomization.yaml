@@ -6,5 +6,4 @@ resources:
   - helmrelease.yaml
   - sloth.yaml
   - flux-alerts.yaml
-  - workload-alerts.yaml
   - dashboards

@@ -55,7 +55,7 @@ published rules plus five of our own for the gaps they leave, routed to a
 
 | Rule | File | Severity | Fires when |
 |---|---|---|---|
-| `DeploymentUnavailable` | `infrastructure/base/monitoring/workload-alerts.yaml` | critical (page) | a Deployment outside `kube-system`, `flux-system` and `monitoring` has had no available pod for 1 minute |
+| `DeploymentUnavailable` | `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml` (VMRule `victoria-metrics-k8s-stack-workload-alerts`) | critical (page) | a Deployment outside `kube-system`, `flux-system` and `monitoring` has had no available pod for 1 minute |
 | `ContainerOOMKilled` | same | warning | a container restarted in the last 10 minutes and its last termination was `OOMKilled` |
 | `ContainerMemoryNearLimit` | same | warning | a container's working set has been above 90% of its memory limit for 5 minutes |
 | `BackendDbPoolNearlyFull` | `apps/base/backend-api/alerts.yaml` | warning | a backend-api pod has held 8 or more of its 10 pool connections for 1 minute |

@@ -207,7 +207,7 @@ up.
 | Source | Catches |
 |---|---|
 | Sloth, from each `slo.yaml` | An SLO burning its error budget. A fast burn (14.4 times the sustainable rate over 5 minutes and 1 hour) pages; a slow burn opens a ticket. A page silences the ticket of the same SLO. |
-| My rules in `infrastructure/base/monitoring/workload-alerts.yaml` | `DeploymentUnavailable` (page): an app has had no ready pod for 1 minute. `ContainerOOMKilled` (ticket): a container restarted after reaching its memory limit. `ContainerMemoryNearLimit` (ticket): above 90% of the limit for 5 minutes. |
+| My rules in `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml` | `DeploymentUnavailable` (page): an app has had no ready pod for 1 minute. `ContainerOOMKilled` (ticket): a container restarted after reaching its memory limit. `ContainerMemoryNearLimit` (ticket): above 90% of the limit for 5 minutes. |
 | My rules in `apps/base/backend-api/alerts.yaml` | `BackendDbPoolNearlyFull` (ticket): a pod has held 8 of its 10 connections for 1 minute. `BackendDbQueryErrors` (ticket): queries failed or found no free connection. |
 | Published rules (the chart's default rules, pinned) | Node, Kubernetes objects (crash loops, pods not ready, missing replicas), postgres-exporter, the monitoring and logging stack. |
 | Flux's notification-controller | A failed reconciliation of a Flux object (ticket). |
@@ -250,8 +250,9 @@ These follow from the rule definitions; I didn't run them:
   Trade-off: if the monitoring install breaks, new app deploys wait until it
   works again; running apps keep running. Infrastructure skips the
   `controllers/` and `configs/` split of Flux's example: the only objects that
-  need the chart's CRDs ship inside the chart (`extraObjects`), and Helm
-  installs CRDs first.
+  need the chart's CRDs ship inside the chart (`extraObjects`, and my rules in
+  `extraRules`), and Helm installs CRDs first. A CRD-based object outside the
+  chart would fail Flux's dry-run on a fresh cluster.
 - **`base/` plus a cluster overlay in every layer.** Every cluster runs the
   same definitions, and a cluster that needs something different (a chart
   version, a Secret, a volume size) changes only that, in one place. With one
@@ -378,7 +379,7 @@ docs/                      agent working notes (specs, plans), the first inspect
 | Add a cluster | `clusters/<cluster>/` + a `<layer>/<cluster>/` overlay per layer |
 | Add a top-level layer folder | Also add `!/<folder>` to `.sourceignore`: Flux downloads only the folders listed there |
 | Add or change an SLO | `apps/base/<app>/slo.yaml` (a `PrometheusServiceLevel`). Shared Sloth settings: `infrastructure/base/monitoring/sloth.yaml` |
-| Change an alert rule | SLO alerts: the target in `slo.yaml`, the plugin chain in `sloth.yaml`. My rules: `workload-alerts.yaml` in `infrastructure/base/monitoring/`, app-specific ones in `apps/base/<app>/alerts.yaml`. Published rules: `defaultRules` in `infrastructure/base/monitoring/helmrelease.yaml` (`rules.<AlertName>.enabled: false` switches one off; per cluster in the overlay) |
+| Change an alert rule | SLO alerts: the target in `slo.yaml`, the plugin chain in `sloth.yaml`. My platform-wide rules: `extraRules` in `infrastructure/base/monitoring/helmrelease.yaml`; app-specific ones: `apps/base/<app>/alerts.yaml`. Published rules: `defaultRules` in `helmrelease.yaml` (`rules.<AlertName>.enabled: false` switches one off; per cluster in the overlay) |
 | Change where alerts go | `alertmanager.config` in `helmrelease.yaml` |
 | Add or change a dashboard | A file (the apps board, Flux, Postgres): `infrastructure/base/monitoring/dashboards/`, the JSON plus one `configMapGenerator` entry. The chart's boards: `defaultDashboards` in `helmrelease.yaml`. Sloth's boards: `grafana.dashboards` (grafana.com ID and revision) |
 | Use a different dashboard on one cluster | `infrastructure/<cluster>/monitoring/kustomization.yaml`: a `configMapGenerator` entry with `behavior: replace` for a file, a HelmRelease patch of `defaultDashboards` for a chart board |
