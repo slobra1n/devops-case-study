@@ -22,6 +22,10 @@ patches:
   # k3d's node is the Docker Desktop VM: no NTP daemon disciplines its kernel
   # clock, so node-exporter reports it as never synchronised, though it matches
   # the host within milliseconds. NodeClockSkewDetected still watches the offset.
+  # The VM's clock also steps back by up to 0.4 ms a few times a minute
+  # (measured 2026-09-28), and vmalert resets a group's schedule on every
+  # backward step, so GroupIterationReset fires with no missed evaluations.
+  # TooManyMissedIterations still catches real evaluation delays.
   - patch: |
       apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease
@@ -33,6 +37,8 @@ patches:
           defaultRules:
             rules:
               NodeClockNotSynchronising:
+                enabled: false
+              GroupIterationReset:
                 enabled: false
   # Grafana has no ingress here; it's reached by port-forward on localhost:3000.
   # vmalert uses this address for the alerts' dashboard and query links.

@@ -320,10 +320,14 @@ These follow from the rule definitions; I didn't run them:
   `… "Traceback" | stream_context after 30`. JSON logs in the apps would fix
   both: vlagent turns JSON fields into log fields, so levels need no rules and
   a traceback stays one entry.
-- **Two alerts off on purpose.** `PostgresHasTooManyRollbacks`: backend's
+- **Three alerts off on purpose.** `PostgresHasTooManyRollbacks`: backend's
   `/ready` runs `SELECT 1`, and the connection pool rolls that back on every
-  call. `NodeClockNotSynchronising` (this cluster only): the Docker Desktop VM
-  runs no NTP daemon; `NodeClockSkewDetected` still watches the offset.
+  call. Two on this cluster only, both from the Docker Desktop VM's clock:
+  `NodeClockNotSynchronising`, because the VM runs no NTP daemon
+  (`NodeClockSkewDetected` still watches the offset), and
+  `GroupIterationReset`, because the VM's clock steps back by up to 0.4 ms a
+  few times a minute and vmalert restarts its schedule on each step
+  (`TooManyMissedIterations` still catches slow evaluations).
 
 ## With more time
 

@@ -46,6 +46,12 @@ published rules plus five of our own for the gaps they leave, routed to a
     Docker Desktop VM's kernel clock has no NTP daemon and always reports
     unsynchronised, though it matches the host within milliseconds.
     `NodeClockSkewDetected` still watches the offset.
+  - `GroupIterationReset` off on devops-cs only (same patch, 2026-09-28): the
+    VM's wall clock steps back by up to 0.4 ms a few times a minute, measured
+    against the monotonic clock in a pod, and vmalert resets a group's
+    schedule on each backward step. It fired for 34 groups on a fresh cluster
+    with no missed iterations and 30 ms evaluations.
+    `TooManyMissedIterations` still catches slow evaluations.
 
 - **Our own rules** (since 2026-09-27): the SLOs count requests inside the
   apps. A pod that fails readiness leaves its Service, gets no requests, and
