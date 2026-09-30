@@ -177,12 +177,13 @@ SLOs count requests inside the app, so an app with no ready pod burns no
 budget. `DeploymentUnavailable` catches that for every workload, again with no
 change per service.
 
-This cluster runs four SLOs, each 99% over a rolling 30 days:
+This cluster runs five SLOs, each 99% over a rolling 30 days:
 
 | Service | SLO | Bad event |
 |---|---|---|
 | ml-api | predict-availability | `POST /predict` answered with 5xx |
 | ml-api | predict-latency | `POST /predict` slower than 1 s |
+| ml-api | uptime | a minute with no ready pod, measured from kube-state-metrics because ml-api records nothing then |
 | backend-api | process-availability | `POST /process` answered with 5xx |
 | backend-api | process-latency | `POST /process` slower than 0.25 s |
 
@@ -389,8 +390,8 @@ already catch its likely causes, memory and a failing health check, through
 Sloth's `alert_rules` plugin (`sloth.yaml`) writes two alerts per SLO. Both
 carry the name from `alerting.name` in `slo.yaml`, for example
 `MlApiPredictLatency`: one with `sloth_severity=page`, one with
-`sloth_severity=ticket`. The four SLOs give eight alerts:
-`MlApiPredictAvailability`, `MlApiPredictLatency`,
+`sloth_severity=ticket`. The five SLOs give ten alerts:
+`MlApiPredictAvailability`, `MlApiPredictLatency`, `MlApiUptime`,
 `BackendApiProcessAvailability` and `BackendApiProcessLatency`, each as page
 and ticket.
 
@@ -595,8 +596,8 @@ Nothing leaves Alertmanager yet, so delivery to a pager or chat is untested.
   `ml_api_requests_total{status="200"}` just before it returns and has no error
   path, so the predict-availability SLO shows 100% whatever happens, and its
   burn-rate alerts can't fire. `DeploymentUnavailable` still pages when ml-api
-  has no ready pod. The SLO needs no change once the app counts its real
-  status.
+  has no ready pod, and the uptime SLO charges that time to a budget. The SLO
+  needs no change once the app counts its real status.
 - **Plain-text logs.** The apps log plain text, so levels come from regex
   rules in the Grafana data source, and a Python traceback arrives one line
   per entry. See [Logs](#logs).

@@ -24,7 +24,7 @@ spec:
         events:
           # The /predict handler has no error path and only counts status 200,
           # so this reads 0 errors until ml-api counts its failures.
-          errorQuery: sum(increase(ml_api_requests_total{endpoint="/predict",status=~"5.."}[{{.window}}])) or vector(0)
+          errorQuery: sum(increase(ml_api_requests_total{endpoint="/predict",status=~"5.."}[{{.window}}])) or vector(0) 
           totalQuery: sum(increase(ml_api_requests_total{endpoint="/predict"}[{{.window}}]))
     - name: predict-latency
       alerting:
@@ -38,3 +38,20 @@ spec:
             sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
             - sum(increase(ml_api_request_duration_seconds_bucket{endpoint="/predict",le="1.0"}[{{.window}}]))
           totalQuery: sum(increase(ml_api_request_duration_seconds_count{endpoint="/predict"}[{{.window}}]))
+    # Minutes the Deployment wants pods but has none available. The two SLOs
+    # above count requests ml-api records itself, so they see nothing while no
+    # pod is ready. Minutes without data (Mac asleep) count as neither.
+    - name: uptime
+      alerting:
+        name: MlApiUptime
+        annotations: # opens SLO / Detail on this SLO
+          dashboard: '{{ $externalURL }}/d/slo-detail?var-service={{ $labels.sloth_service }}&var-slo={{ $labels.sloth_slo }}'
+      objective: 99 # 30-day target: 7.2 h with no ready pod
+      sli:
+        events:
+          errorQuery: |
+            count_over_time((
+              max(kube_deployment_spec_replicas{namespace="ml-api",deployment="ml-api"}) > 0
+              and max(kube_deployment_status_replicas_available{namespace="ml-api",deployment="ml-api"}) == 0
+            )[{{.window}}:1m]) or vector(0)
+          totalQuery: count_over_time((max(kube_deployment_spec_replicas{namespace="ml-api",deployment="ml-api"}) > 0)[{{.window}}:1m])
