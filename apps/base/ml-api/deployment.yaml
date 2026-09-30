@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: ml-api
-          image: ghcr.io/voize-gmbh/devops-case-study/ml-api:v1
+          image: ghcr.io/voize-gmbh/devops-case-study/ml-api:v1.1
           ports:
             - containerPort: 8000
               name: http
