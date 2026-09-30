@@ -71,7 +71,8 @@ spec:
           folderAnnotation: grafana_folder
           # Boards in git sit next to what they show, in its namespace:
           # apps/base/<app>/, databases/base/postgres/,
-          # infrastructure/base/flux-monitoring/.
+          # infrastructure/base/flux-monitoring/; Sloth's Detail board in
+          # infrastructure/base/monitoring/dashboards/.
           searchNamespace: ALL
           # The chart's default, /var/lib/grafana/dashboards, would hide the
           # downloaded Sloth dashboards below (the sidecar's volume is mounted
@@ -79,11 +80,12 @@ spec:
           folder: /tmp/dashboards
           provider:
             foldersFromFilesStructure: true
-      # Sloth's own SLO dashboards, unedited, for Sloth's default 30-day period.
-      # An init container downloads the pinned revisions from grafana.com at
-      # every Grafana start and only swaps the import placeholder DS_PROMETHEUS
-      # for our data source. If grafana.com is unreachable, Grafana still
-      # starts, without these two dashboards until its next start.
+      # Sloth's SLO overview, unedited, for Sloth's default 30-day period. An
+      # init container downloads the pinned revision from grafana.com at every
+      # Grafana start and only swaps the import placeholder DS_PROMETHEUS for
+      # our data source. If grafana.com is unreachable, Grafana still starts,
+      # without this dashboard until its next start. The Detail board it links
+      # to is in git (kustomization.yaml, dashboard-sloth-detail).
       dashboardProviders:
         dashboardproviders.yaml:
           apiVersion: 1
@@ -100,10 +102,6 @@ spec:
           sloth-overview: # https://grafana.com/grafana/dashboards/14643
             gnetId: 14643
             revision: 2
-            datasource: [{name: DS_PROMETHEUS, value: VictoriaMetrics}]
-          sloth-detail: # https://grafana.com/grafana/dashboards/14348
-            gnetId: 14348
-            revision: 5
             datasource: [{name: DS_PROMETHEUS, value: VictoriaMetrics}]
     # Routes, receivers and inhibitions: alertmanager-config.yaml (valuesFrom).
     alertmanager:

@@ -32,6 +32,12 @@ defaultRules:
     # /ready call, not an application error.
     PostgresHasTooManyRollbacks:
       enabled: false
+    # count(up == 0) records nothing while every target is up, which
+    # RecordingRulesNoData (info) reads as a broken rule: it fired on every
+    # healthy cluster and kept InfoInhibitor firing in monitoring. Nothing
+    # reads count:up0; TargetDown covers targets that are down.
+    count:up0:
+      enabled: false
   sources:
     alertmanager:
       url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.19.0/manifests/alertmanager-prometheusRule.yaml

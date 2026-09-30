@@ -204,10 +204,14 @@ owns its board the way it owns its SLOs, and a new service adds a board
 without touching the monitoring stack. Grafana's sidecar loads labelled board
 ConfigMaps from every namespace and names each file after its namespace and
 ConfigMap, so every app can keep the file name `dashboard.json`. Every other
-board comes unedited from a published upstream project, pinned to the version
-that runs here. Postgres' and Flux's boards ship next to what they show, the
-rest with the monitoring stack ([why](#where-monitoring-lives)). Alerts link to
-the board that explains them.
+board comes from a published upstream project, pinned to the version that
+runs here, and unedited except Sloth's SLO / Detail. That board's burn-rate
+heatmap dates from Grafana 7.5; Grafana 13 converts it and makes every cell
+transparent when each cell holds one sample. The copy in
+`infrastructure/base/monitoring/dashboards/` sets the heatmap's color minimum
+to 0. Postgres' and Flux's boards ship next to what they show, the rest with
+the monitoring stack ([why](#where-monitoring-lives)). Alerts link to the
+board that explains them.
 
 #### Change an app board
 
@@ -556,7 +560,8 @@ Nothing leaves Alertmanager yet, so delivery to a pager or chat is untested.
   Sloth as a controller, not as a CLI in CI. With the CLI, every SLO change
   means generating rules and committing them; the controller reads each
   `slo.yaml` in the cluster, and that makes the one-file onboarding above
-  work. Sloth's defaults stay (30-day period), so its dashboards run unedited.
+  work. Sloth's defaults stay (30-day period), so its dashboards run nearly
+  unedited; the Detail board's heatmap has one fix (Dashboards, above).
   Sloth's status has no conditions, so the `apps` Kustomization checks
   `promOpRulesGenerated` to catch a broken SLO. Trade-off: the generated rules
   live in the cluster, not in git.
@@ -566,9 +571,9 @@ Nothing leaves Alertmanager yet, so delivery to a pager or chat is untested.
   150. The 99% budget allows about 250 failed requests a day.
 - **Downloads at deploy time, accepted.** The chart's sync job fetches alert
   rules and dashboards from GitHub at every Helm upgrade; Grafana fetches
-  Sloth's two boards and the VictoriaLogs plugin from grafana.com at start.
+  Sloth's overview board and the VictoriaLogs plugin from grafana.com at start.
   Without internet the upgrade fails and retries, and Grafana starts without
-  those boards or the logs data source.
+  that board or the logs data source.
 - **Postgres on `emptyDir`.** Its data is throwaway here.
 - **Straight to `main`, no CI.** I made every change directly on `main`,
   without branches or pull requests, and Flux reports a broken render a minute

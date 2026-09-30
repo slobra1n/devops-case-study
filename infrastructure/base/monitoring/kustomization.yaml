@@ -22,3 +22,16 @@ configMapGenerator:
     options:
       disableNameSuffixHash: true
       labels: {reconcile.fluxcd.io/watch: Enabled}
+  # Sloth's SLO / Detail board (grafana.com 14348, revision 5, the latest),
+  # with two edits: the import placeholder DS_PROMETHEUS is our data source,
+  # and the burn-rate heatmap has color min 0. Grafana 13 converts that old
+  # heatmap and scales cell opacity from the lowest cell count, so with one
+  # sample per cell every cell was transparent. To update, download a new
+  # revision and redo both edits.
+  - name: dashboard-sloth-detail
+    namespace: monitoring
+    files: [dashboards/sloth-detail.json]
+    options:
+      disableNameSuffixHash: true
+      labels: {grafana_dashboard: "1"}
+      annotations: {grafana_folder: SLOs}
