@@ -98,7 +98,7 @@
         "viewMode": "list",
         "groupMode": "default",
         "groupBy": [],
-        "showInstances": true,
+        "showInstances": false,
         "maxItems": 20,
         "sortOrder": 1,
         "dashboardAlerts": false
@@ -130,7 +130,7 @@
         "viewMode": "list",
         "groupMode": "default",
         "groupBy": [],
-        "showInstances": true,
+        "showInstances": false,
         "maxItems": 20,
         "sortOrder": 1,
         "dashboardAlerts": false
