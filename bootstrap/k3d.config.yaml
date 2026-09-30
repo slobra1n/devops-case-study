@@ -3,6 +3,10 @@ apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
   name: devops-cs
+# k3d 5.9.0 defaults to k3s v1.35.5, which can crash-loop on first start: its
+# cloud-controller-manager starts before its RoleBinding exists and k3s shuts
+# down (k3s-io/k3s#7328). v1.35.6 fixed it (k3s-io/k3s#14201).
+image: rancher/k3s:v1.35.8-k3s1
 servers: 1
 agents: 0
 ports:
