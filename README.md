@@ -177,15 +177,16 @@ SLOs count requests inside the app, so an app with no ready pod burns no
 budget. `DeploymentUnavailable` catches that for every workload, again with no
 change per service.
 
-This cluster runs five SLOs, each 99% over a rolling 30 days:
+This cluster runs six SLOs, each 99% over a rolling 30 days:
 
 | Service | SLO | Bad event |
 |---|---|---|
 | ml-api | predict-availability | `POST /predict` answered with 5xx |
 | ml-api | predict-latency | `POST /predict` slower than 1 s |
-| ml-api | uptime | a minute with no ready pod, measured from kube-state-metrics because ml-api records nothing then |
+| ml-api | uptime | a minute with no ready pod, measured from kube-state-metrics because the app records nothing then |
 | backend-api | process-availability | `POST /process` answered with 5xx |
 | backend-api | process-latency | `POST /process` slower than 0.25 s |
+| backend-api | uptime | a minute with no ready pod, as for ml-api |
 
 ### Dashboards
 
@@ -390,16 +391,17 @@ already catch its likely causes, memory and a failing health check, through
 Sloth's `alert_rules` plugin (`sloth.yaml`) writes two alerts per SLO. Both
 carry the name from `alerting.name` in `slo.yaml`, for example
 `MlApiPredictLatency`: one with `sloth_severity=page`, one with
-`sloth_severity=ticket`. The five SLOs give ten alerts:
+`sloth_severity=ticket`. The six SLOs give twelve alerts:
 `MlApiPredictAvailability`, `MlApiPredictLatency`, `MlApiUptime`,
-`BackendApiProcessAvailability` and `BackendApiProcessLatency`, each as page
-and ticket.
+`BackendApiProcessAvailability`, `BackendApiProcessLatency` and
+`BackendApiUptime`, each as page and ticket.
 
-Each alert compares the SLO's bad-request ratio (5xx, or slower than the
-threshold for a latency SLO) with the error budget, 1% at a 99% target. The
-burn rate is that ratio divided by the budget: at 1 the budget lasts exactly
-30 days, at 14.4 it is gone in about 2 days. An alert needs two windows above
-the same burn rate. The long one shows the problem is big enough to matter;
+Each alert compares the SLO's bad-event ratio (5xx, slower than the threshold
+for a latency SLO, or minutes without a ready pod for uptime) with the error
+budget, 1% at a 99% target. The burn rate is that ratio divided by the budget:
+at 1 the budget lasts exactly 30 days, at 14.4 it is gone in about 2 days. An
+alert needs two windows above the same burn rate. The long one shows the
+problem is big enough to matter;
 the short one shows it is still happening, so the alert resolves soon after a
 fix and needs no `for:` wait. These are the SRE workbook's multi-window,
 multi-burn-rate alerts, with Sloth's defaults for a 30-day period:

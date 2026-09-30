@@ -35,3 +35,20 @@ spec:
             sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[{{.window}}]))
             - sum(increase(backend_api_request_duration_seconds_bucket{endpoint="/process",le="0.25"}[{{.window}}]))
           totalQuery: sum(increase(backend_api_request_duration_seconds_count{endpoint="/process"}[{{.window}}]))
+    # Minutes the Deployment wants pods but has none available. The two SLOs
+    # above count requests backend-api records itself, so they see nothing
+    # while no pod is ready. Minutes without data (Mac asleep) count as neither.
+    - name: uptime
+      alerting:
+        name: BackendApiUptime
+        annotations: # opens SLO / Detail on this SLO
+          dashboard: '{{ $externalURL }}/d/slo-detail?var-service={{ $labels.sloth_service }}&var-slo={{ $labels.sloth_slo }}'
+      objective: 99 # 30-day target: 7.2 h with no ready pod
+      sli:
+        events:
+          errorQuery: |
+            count_over_time((
+              max(kube_deployment_spec_replicas{namespace="backend-api",deployment="backend-api"}) > 0
+              and max(kube_deployment_status_replicas_available{namespace="backend-api",deployment="backend-api"}) == 0
+            )[{{.window}}:1m]) or vector(0)
+          totalQuery: count_over_time((max(kube_deployment_spec_replicas{namespace="backend-api",deployment="backend-api"}) > 0)[{{.window}}:1m])
