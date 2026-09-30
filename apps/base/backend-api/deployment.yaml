@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: backend-api
-          image: ghcr.io/voize-gmbh/devops-case-study/backend-api:v1
+          image: ghcr.io/voize-gmbh/devops-case-study/backend-api:v1.4
           ports:
             - containerPort: 8000
               name: http
