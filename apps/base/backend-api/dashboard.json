@@ -50,7 +50,7 @@
         },
         "enable": true,
         "iconColor": "red",
-        "expr": "ALERTS{alertstate=\"firing\", namespace=\"backend-api\"} or ALERTS{alertstate=\"firing\", sloth_service=\"backend-api\"}",
+        "expr": "ALERTS{alertstate=\"firing\", namespace=\"backend-api\"}",
         "step": "30s",
         "titleFormat": "{{alertname}}",
         "textFormat": "severity {{severity}}{{sloth_severity}}",
@@ -75,44 +75,12 @@
     {
       "id": 17,
       "type": "alertlist",
-      "title": "SLO alerts",
-      "description": "Firing and pending burn-rate alerts of backend-api's SLOs (slo.yaml), read from vmalert.",
+      "title": "Alerts",
+      "description": "Firing and pending alerts in the backend-api namespace, read from vmalert: its SLO alerts (slo.yaml labels them with the namespace), workload alerts and backend-api's own rules.",
       "gridPos": {
         "h": 6,
-        "w": 12,
+        "w": 24,
         "x": 0,
-        "y": 1
-      },
-      "options": {
-        "datasource": "VictoriaMetrics",
-        "alertInstanceLabelFilter": "{sloth_service=\"backend-api\"}",
-        "alertName": "",
-        "stateFilter": {
-          "firing": true,
-          "pending": true,
-          "noData": false,
-          "normal": false,
-          "error": false,
-          "recovering": false
-        },
-        "viewMode": "list",
-        "groupMode": "default",
-        "groupBy": [],
-        "showInstances": false,
-        "maxItems": 20,
-        "sortOrder": 1,
-        "dashboardAlerts": false
-      }
-    },
-    {
-      "id": 18,
-      "type": "alertlist",
-      "title": "Pod and app alerts",
-      "description": "Firing and pending alerts in the backend-api namespace: workload alerts and backend-api's own rules, read from vmalert.",
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
         "y": 1
       },
       "options": {

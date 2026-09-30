@@ -7,6 +7,11 @@ metadata:
   namespace: backend-api
 spec:
   service: backend-api
+  # Sloth's rules carry only sloth_* labels. The namespace puts the SLO alerts
+  # next to the app's other alerts: Alertmanager groups by it, and the app
+  # board's alert list filters on it.
+  labels:
+    namespace: backend-api
   slos:
     - name: process-availability
       alerting:

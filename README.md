@@ -164,8 +164,9 @@ To add a service:
    `/metrics`, as both apps here do.
 2. Annotate its pods with `prometheus.io/scrape`, `prometheus.io/port` and
    `prometheus.io/path`; vmagent scrapes every annotated pod.
-3. Copy `apps/base/ml-api/slo.yaml` into the app's folder, change the queries
-   and the target, and list the file in the app's `kustomization.yaml`.
+3. Copy `apps/base/ml-api/slo.yaml` into the app's folder, change the queries,
+   the target and the `namespace` label, and list the file in the app's
+   `kustomization.yaml`.
 4. Optionally, copy `apps/base/ml-api/dashboard.json` and its
    `configMapGenerator` entry the same way, for a board with the app's own
    metrics. Grafana picks it up from the app's namespace.
@@ -194,7 +195,7 @@ you from "is something wrong" to "which component":
 |---|---|---|
 | SLOs | High level Sloth SLOs | Is any SLO burning its error budget? |
 | SLOs | SLO / Detail | How is one SLO doing: SLI, burn rate, budget left? Red regions mark when its alerts fired |
-| Apps | ml-api / Service health, backend-api / Service health | Per app: firing and pending alerts at the top (the app's SLO alerts, and alerts in its namespace), then rate, errors, latency, ready pods and memory (ml-api) or the database pool (backend-api), and the app's logs at the bottom. Red regions on every panel mark when the app's alerts fired. Each panel links to the app's SLO, pods and logs; an `Apps` menu switches between app boards |
+| Apps | ml-api / Service health, backend-api / Service health | Per app: firing and pending alerts at the top (everything labelled with the app's namespace, SLO alerts included), then rate, errors, latency, ready pods and memory (ml-api) or the database pool (backend-api), and the app's logs at the bottom. Red regions on every panel mark when the app's alerts fired. Each panel links to the app's SLO, pods and logs; an `Apps` menu switches between app boards |
 | Components | Kubernetes / Compute Resources (Cluster → Namespace → Pod), Node Exporter / Nodes | Where do CPU, memory, disk and network go? |
 | Components | Flux Cluster Stats, Postgres Overview, VictoriaMetrics (single-node, vmagent, vmalert, operator), VictoriaLogs (single-node, vlagent) | Is this component healthy? |
 
