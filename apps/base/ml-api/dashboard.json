@@ -41,9 +41,101 @@
     "list": []
   },
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "name": "Firing alerts",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "VictoriaMetrics"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "expr": "ALERTS{alertstate=\"firing\", namespace=\"ml-api\"} or ALERTS{alertstate=\"firing\", sloth_service=\"ml-api\"}",
+        "step": "30s",
+        "titleFormat": "{{alertname}}",
+        "textFormat": "severity {{severity}}{{sloth_severity}}",
+        "tagKeys": "severity,sloth_severity",
+        "useValueForTime": false
+      }
+    ]
   },
   "panels": [
+    {
+      "id": 13,
+      "type": "row",
+      "title": "ml-api \u00b7 alerts",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 14,
+      "type": "alertlist",
+      "title": "SLO alerts",
+      "description": "Firing and pending burn-rate alerts of ml-api's SLOs (slo.yaml), read from vmalert.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "options": {
+        "datasource": "VictoriaMetrics",
+        "alertInstanceLabelFilter": "{sloth_service=\"ml-api\"}",
+        "alertName": "",
+        "stateFilter": {
+          "firing": true,
+          "pending": true,
+          "noData": false,
+          "normal": false,
+          "error": false,
+          "recovering": false
+        },
+        "viewMode": "list",
+        "groupMode": "default",
+        "groupBy": [],
+        "showInstances": true,
+        "maxItems": 20,
+        "sortOrder": 1,
+        "dashboardAlerts": false
+      }
+    },
+    {
+      "id": 15,
+      "type": "alertlist",
+      "title": "Pod and app alerts",
+      "description": "Firing and pending alerts in the ml-api namespace: workload alerts and ml-api's own rules, read from vmalert.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "options": {
+        "datasource": "VictoriaMetrics",
+        "alertInstanceLabelFilter": "{namespace=\"ml-api\"}",
+        "alertName": "",
+        "stateFilter": {
+          "firing": true,
+          "pending": true,
+          "noData": false,
+          "normal": false,
+          "error": false,
+          "recovering": false
+        },
+        "viewMode": "list",
+        "groupMode": "default",
+        "groupBy": [],
+        "showInstances": true,
+        "maxItems": 20,
+        "sortOrder": 1,
+        "dashboardAlerts": false
+      }
+    },
     {
       "id": 1,
       "type": "row",
@@ -53,7 +145,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 7
       },
       "panels": []
     },
@@ -70,7 +162,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 1
+        "y": 8
       },
       "targets": [
         {
@@ -177,7 +269,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 1
+        "y": 8
       },
       "targets": [
         {
@@ -283,7 +375,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 1
+        "y": 8
       },
       "targets": [
         {
@@ -393,7 +485,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 9
+        "y": 16
       },
       "targets": [
         {
@@ -521,7 +613,7 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 9
+        "y": 16
       },
       "targets": [
         {
@@ -639,7 +731,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 17
+        "y": 24
       },
       "panels": []
     },
@@ -656,7 +748,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 25
       },
       "links": [
         {

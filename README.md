@@ -193,8 +193,8 @@ you from "is something wrong" to "which component":
 | Folder | Board | Answers |
 |---|---|---|
 | SLOs | High level Sloth SLOs | Is any SLO burning its error budget? |
-| SLOs | SLO / Detail | How is one SLO doing: SLI, burn rate, budget left? |
-| Apps | ml-api / Service health, backend-api / Service health | Per app: rate, errors, latency, then ready pods and memory (ml-api) or the database pool (backend-api), and the app's logs at the bottom. Each panel links to the app's SLO, pods and logs; an `Apps` menu switches between app boards |
+| SLOs | SLO / Detail | How is one SLO doing: SLI, burn rate, budget left? Red regions mark when its alerts fired |
+| Apps | ml-api / Service health, backend-api / Service health | Per app: firing and pending alerts at the top (the app's SLO alerts, and alerts in its namespace), then rate, errors, latency, ready pods and memory (ml-api) or the database pool (backend-api), and the app's logs at the bottom. Red regions on every panel mark when the app's alerts fired. Each panel links to the app's SLO, pods and logs; an `Apps` menu switches between app boards |
 | Components | Kubernetes / Compute Resources (Cluster → Namespace → Pod), Node Exporter / Nodes | Where do CPU, memory, disk and network go? |
 | Components | Flux Cluster Stats, Postgres Overview, VictoriaMetrics (single-node, vmagent, vmalert, operator), VictoriaLogs (single-node, vlagent) | Is this component healthy? |
 
@@ -209,9 +209,9 @@ runs here, and unedited except Sloth's SLO / Detail. That board's burn-rate
 heatmap dates from Grafana 7.5; Grafana 13 converts it and makes every cell
 transparent when each cell holds one sample. The copy in
 `infrastructure/base/monitoring/dashboards/` sets the heatmap's color minimum
-to 0. Postgres' and Flux's boards ship next to what they show, the rest with
-the monitoring stack ([why](#where-monitoring-lives)). Alerts link to the
-board that explains them.
+to 0 and adds the alert regions. Postgres' and Flux's boards ship next to
+what they show, the rest with the monitoring stack
+([why](#where-monitoring-lives)). Alerts link to the board that explains them.
 
 #### Change an app board
 

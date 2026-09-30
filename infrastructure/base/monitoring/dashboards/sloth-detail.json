@@ -64,6 +64,21 @@
           "type": "dashboard"
         },
         "type": "dashboard"
+      },
+      {
+        "name": "Firing alerts",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "VictoriaMetrics"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "expr": "ALERTS{alertstate=\"firing\", sloth_service=\"$service\", sloth_slo=~\"$slo\"}",
+        "step": "30s",
+        "titleFormat": "{{alertname}}",
+        "textFormat": "severity {{severity}}{{sloth_severity}}",
+        "tagKeys": "severity,sloth_severity",
+        "useValueForTime": false
       }
     ]
   },
